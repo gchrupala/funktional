@@ -1,6 +1,4 @@
 # funktional
-Functional neural network layers on top of theano
-
 A minimalistic toolkit for composing neural networks with Theano. 
 
 Mathematically, neural network layers are functions mapping tensors to tensors. 
