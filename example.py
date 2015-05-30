@@ -76,20 +76,21 @@ def main():
     data = json.load(open('/home/gchrupala/repos/neuraltalk/data/flickr30k/dataset.json'))
     mb_size = 128
     model = Model(size_vocab=256, size=512)
-    for _j, item in enumerate(grouper(sentences(data), 128)):
-        j = _j + 1
-        mb = numpy.array(pad([ [ord(' ')]+to_bytes(s) for s in item], ord(' ')), dtype='int32')
-        inp = mb[:,1:]
-        out = mb[:,1:]
-        out_prev = mb[:,0:-1]
-        print j, model.train(inp, out_prev, out)
-        if j % 20 == 0:
-             pred = model.predict(inp, out_prev)
-             for i in range(len(pred)):
-                 orig = repr(from_bytes(inp[i]))
-                 res = repr(''.join([ chr(b) for b in numpy.argmax(pred, axis=2)[i] ]))
-                 print len(orig), orig
-                 print len(res), res
-
+    for epoch in range(1,6):
+        for _j, item in enumerate(grouper(sentences(data), 128)):
+            j = _j + 1
+            mb = numpy.array(pad([ [ord(' ')]+to_bytes(s) for s in item], ord(' ')), dtype='int32')
+            inp = mb[:,1:]
+            out = mb[:,1:]
+            out_prev = mb[:,0:-1]
+            print epoch, j, model.train(inp, out_prev, out)
+            if j % 50 == 0:
+                pred = model.predict(inp, out_prev)
+                for i in range(len(pred)):
+                    orig = repr(from_bytes(inp[i]))
+                    res = repr(''.join([ chr(b) for b in numpy.argmax(pred, axis=2)[i] ]))
+                    print len(orig), orig
+                    print len(res), res
+    
 if __name__ == '__main__':
     main()
