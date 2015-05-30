@@ -29,6 +29,12 @@ def orthogonal(shape, scale=1.1):
 def tanh(x):
 	return T.tanh(x)
 
+def rectify(x):
+	return (x + abs(x)) / 2.0
+
+def clipped_rectify(x):
+	return T.clip((x + abs(x)) / 2.0, 0., 5.)
+
 def steeper_sigmoid(x):
 	return 1./(1. + T.exp(-3.75 * x))
 

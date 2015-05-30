@@ -1,4 +1,4 @@
-# A simple encoder-decode example with funktional
+# A simple encoder-decoder example with funktional
 
 import theano
 import numpy
@@ -8,11 +8,16 @@ from layer import *
 
 class EncoderDecoder(Layer):
     """A simple encoder-decoder net with shared input and output vocabulary."""
-    def __init__(self, size_vocab, size):
+    def __init__(self, size_vocab, size, depth):
         self.size_vocab  = size_vocab
         self.size     = size
+        self.depth    = depth
         self.OH       = OneHot(self.size_vocab)
-        self.Encdec   = EncoderDecoderGRU(self.size_vocab, self.size, self.size_vocab)
+        encoder = lambda *args: StackedGRU(*args, self.depth=3)
+        decoder = lambda *args: StackedGRU(*args, self.depth=3)
+        self.Encdec   = EncoderDecoderGRU(self.size_vocab, self.size, self.size_vocab, 
+                                          encoder=encoder,
+                                          decoder=decoder)
         self.Out      = Dense(size_in=self.size, size_out=self.size_vocab)
         self.params   = self.Encdec.params + self.Out.params
         

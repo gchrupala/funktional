@@ -114,6 +114,17 @@ class Zeros(Layer):
     def __call__(self):
         return self.zeros
 
+def provide_h0(h0, layer):
+    """Returns a new Layer which composes 'h0' and 'layer' such that 'h0()' is the initial state of 'layer'."""
+    L = Layer()
+    L.params = h0.params + layer.params
+    L.__call__ = lambda inp: layer(h0(), inp, repeat_h0=1)
+    return L
+
+def GRUH0(size_in, size):
+    """A GRU layer with its own initial state."""
+    return provide_h0(Zeros(size), GRU(size_in, size))
+    
 def last(x):
     """Returns the last time step of all sequences in x."""
     return x.dimshuffle((1,0,2))[-1]
@@ -129,16 +140,31 @@ class EncoderDecoderGRU(object):
     Returns:
       tensor3 - sequence of states (one for each element of output sequence)
     """
-    def __init__(self, size_in, size, size_out):
+    def __init__(self, size_in, size, size_out, encoder=GRUH0, decoder=GRU):
         self.size_in  = size_in
         self.size     = size
         self.size_out = size_out
-        self.Encode   = GRU(size_in=self.size_in, size=self.size)
-        self.Decode   = GRU(size_in=self.size_out, size=self.size)
-        self.H0       = Zeros(size=self.size)
-        self.params = sum([ l.params for l in [self.Encode, self.Decode, self.H0] ], [])
-
+        self.Encode   = encoder(size_in=self.size_in, size=self.size)
+        self.Decode   = decoder(size_in=self.size_out, size=self.size)
+        self.params = self.Encode.params + self.Decode.params
 
     def __call__(self, inp, out_prev):
-        return self.Decode(last(self.Encode(self.H0(), inp, repeat_h0=1)), out_prev)
+        return self.Decode(last(self.Encode(inp)), out_prev)    
 
+class StackedGRU(Layer):
+    """A stack of GRUs."""
+    def __init__(self, size_in, size, depth=2):
+        self.size_in = size_in
+        self.size = size
+        self.depth = depth
+        bottom = GRU(self.size_in, self.size)
+        layers = [ GRUH0(self.size, self.size)
+                   for _ in range(1,self.depth) ]
+        self.stack = reduce(lambda z, x: z.compose(x), layers)
+        self.params = self.stack.params
+
+    def __call__(self, h0, inp):
+        return self.stack(h0, self.bottom(h0, inp))
+        
+
+        
