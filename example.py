@@ -13,8 +13,8 @@ class EncoderDecoder(Layer):
         self.size     = size
         self.depth    = depth
         self.OH       = OneHot(self.size_vocab)
-        encoder = lambda *args: StackedGRU(*args, self.depth=3)
-        decoder = lambda *args: StackedGRU(*args, self.depth=3)
+        encoder = lambda size_in, size: StackedGRUH0(size_in, size, self.depth)
+        decoder = lambda size_in, size: StackedGRU(size_in, size, self.depth)
         self.Encdec   = EncoderDecoderGRU(self.size_vocab, self.size, self.size_vocab, 
                                           encoder=encoder,
                                           decoder=decoder)
@@ -26,10 +26,11 @@ class EncoderDecoder(Layer):
 
 class Model(object):
     """Trainable encoder-decoder model."""
-    def __init__(self, size_vocab, size):
+    def __init__(self, size_vocab, size, depth):
         self.size = size
         self.size_vocab = size_vocab
-        self.network = EncoderDecoder(self.size_vocab, self.size)
+        self.depth = depth
+        self.network = EncoderDecoder(self.size_vocab, self.size, self.depth)
         self.input       = T.imatrix()
         self.output_prev = T.imatrix()
         self.output      = T.imatrix()
@@ -80,7 +81,7 @@ def from_bytes(bs):
 def main():
     data = json.load(open('/home/gchrupala/repos/neuraltalk/data/flickr30k/dataset.json'))
     mb_size = 128
-    model = Model(size_vocab=256, size=512)
+    model = Model(size_vocab=256, size=512, depth=2)
     for epoch in range(1,6):
         for _j, item in enumerate(grouper(sentences(data), 128)):
             j = _j + 1
