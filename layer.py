@@ -6,18 +6,25 @@ import numpy
 class Layer(object):
     """Neural net layer. Maps (a number of) theano tensors to a theano tensor."""
     def __init__(self):
+        self.tag = []
         self.params = []
 
     def __call__(self, *inp):
-        raise NotImplementedError
+         raise NotImplementedError
 
     def compose(self, l2):
         """Compose itself with another layer."""
-        l = Layer()
-        l.__call__ = lambda inp: self(l2(inp))
-        l.params = self.params + l2.params
-        return l
+        return ComposedLayer(self, l2)
 
+class ComposedLayer(Layer):
+    
+    def __init__(self, first, second):
+        self.first = first
+        self.second = second
+        self.params = self.first + self.second
+
+    def __call__(self, inp):
+        return self.first(self.second(inp))
 
 class Embedding(Layer):
     """Embedding (lookup table) layer."""
@@ -57,7 +64,7 @@ class Dense(Layer):
     def __call__(self, inp):
         return T.dot(inp, self.w) + self.b
 
-class GRU(object):
+class GRU(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states.
     """
@@ -114,22 +121,25 @@ class Zeros(Layer):
     def __call__(self):
         return self.zeros
 
-def provide_h0(h0, layer):
+class WithH0(Layer):
     """Returns a new Layer which composes 'h0' and 'layer' such that 'h0()' is the initial state of 'layer'."""
-    L = Layer()
-    L.params = h0.params + layer.params
-    L.__call__ = lambda inp: layer(h0(), inp, repeat_h0=1)
-    return L
+    def __init__(self, h0, layer):
+        self.h0 = h0
+        self.layer = layer
+        self.params = self.h0.params + self.layer.params
+
+    def __call__(self, inp):
+        return self.layer(self.h0(), inp, repeat_h0=1)
 
 def GRUH0(size_in, size):
     """A GRU layer with its own initial state."""
-    return provide_h0(Zeros(size), GRU(size_in, size))
+    return WithH0(Zeros(size), GRU(size_in, size))
     
 def last(x):
     """Returns the last time step of all sequences in x."""
     return x.dimshuffle((1,0,2))[-1]
     
-class EncoderDecoderGRU(object):
+class EncoderDecoderGRU(Layer):
     """A pair of GRUs: the first one encodes the input sequence into a
        state, the second one decodes the state into a sequence of states.
    
@@ -157,14 +167,16 @@ class StackedGRU(Layer):
         self.size_in = size_in
         self.size = size
         self.depth = depth
-        bottom = GRU(self.size_in, self.size)
+        self.bottom = GRU(self.size_in, self.size)
         layers = [ GRUH0(self.size, self.size)
                    for _ in range(1,self.depth) ]
         self.stack = reduce(lambda z, x: z.compose(x), layers)
         self.params = self.stack.params
 
-    def __call__(self, h0, inp):
-        return self.stack(h0, self.bottom(h0, inp))
+    def __call__(self, h0, inp, repeat_h0=0):
+        return self.stack(self.bottom(h0, inp, repeat_h0=repeat_h0))
         
+def StackedGRUH0(size_in, size, depth):
+    """A stacked GRU layer with its own initial state."""
+    return WithH0(Zeros(size), StackedGRU(size_in, size, depth))
 
-        
