@@ -54,7 +54,17 @@ class EncoderDecoder(Layer):
 
 Note that in the definition of ` __call__` we specify the network
 connectivity using function application syntax, and mix `Layer`
-objects together with regular Python functions such as `last`.
+objects together with regular Python functions such as `last`. The
+`EncoderDecoder` we defined can in turn be composed with other layers
+or functions:
+
+```python
+Encdec = EncoderDecoder(size_in, size, size_out)
+output = softmax3d(Encdec(input, output_prev))
+```
+
+Limitations
+-----------
 
 Funktional is not meant to be a full-fledged, self-contained toolkit,
 but only to provide a convenient interface. Functionality such as
