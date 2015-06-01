@@ -15,11 +15,12 @@ and function composition idioms familiar from general purpose
 programming.
 
 For example, suppose we need to implement a recurrent encoder-decoder
-network. As the encoder we use a GRU layer which takes one input
-tensor and returns a sequence of hidden states. The decoder is another
-GRU which takes an initial state, and a sequence of outputs, and
-returns a sequence of hidden states. From these hidden states we 
-then predict the next output element:
+network. As the encoder we use a GRU layer which takes one argument
+(the input sequence) and returns a sequence of hidden states. The
+decoder is another GRU which takes two arguments (an initial state,
+and a sequence of outputs), and returns a sequence of hidden
+states. From these hidden states we then predict the next output
+element:
 
 ```
             y1 y2 y3 y.
