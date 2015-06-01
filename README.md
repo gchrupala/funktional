@@ -23,11 +23,13 @@ states. From these hidden states we then predict the next output
 element:
 
 ```
-            y1 y2 y3 y.
-            |  |  |  |            
-h0-h1-h2-h3-g1-g2-g3-g4
-   |  |  |  |  |  |  |
-   x1 x2 x. y0 y1 y2 y3
+                y1  y2  y3  y.
+                ^   ^   ^   ^
+                |   |   |   |            
+h0->h1->h2->h3->g1->g2->g3->g4
+    ^   ^   ^   ^   ^   ^   ^
+    |   |   |   |   |   |   |
+    x1  x2  x.  y0  y1  y2  y3
 ```
 
 With funktional, you would create the layers and then compose them
