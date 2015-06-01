@@ -37,6 +37,9 @@ class Embedding(Layer):
     def __call__(self, inp):
         return self.E[inp]
 
+    def debed(self, inp):
+        return T.dot(inp, self.E.T)
+        
 def theano_one_hot(idx, n):
     z = T.zeros((idx.shape[0], n))
     one_hot = T.set_subtensor(z[T.arange(idx.shape[0]), idx], 1)

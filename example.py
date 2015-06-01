@@ -6,6 +6,8 @@ import json
 import random
 import itertools
 from layer import *
+from passage.preprocessing import Tokenizer
+import cPickle as pickle
 
 class EncoderDecoder(Layer):
     """A simple encoder-decoder net with shared input and output vocabulary."""
@@ -13,17 +15,17 @@ class EncoderDecoder(Layer):
         self.size_vocab  = size_vocab
         self.size     = size
         self.depth    = depth
-        self.OH       = OneHot(self.size_vocab)
+        self.Embed    = Embedding(self.size_vocab, self.size)
         encoder = lambda size_in, size: StackedGRUH0(size_in, size, self.depth)
         decoder = lambda size_in, size: StackedGRU(size_in, size, self.depth)
-        self.Encdec   = EncoderDecoderGRU(self.size_vocab, self.size, self.size_vocab, 
+        self.Encdec   = EncoderDecoderGRU(self.size, self.size, self.size, 
                                           encoder=encoder,
                                           decoder=decoder)
-        self.Out      = Dense(size_in=self.size, size_out=self.size_vocab)
-        self.params   = self.Encdec.params + self.Out.params
+        self.Out      = Dense(size_in=self.size, size_out=self.size)
+        self.params   = self.Embed.params + self.Encdec.params + self.Out.params
         
     def __call__(self, inp, out_prev):
-        return softmax3d(self.Out(self.Encdec(self.OH(inp), self.OH(out_prev))))
+        return softmax3d(self.Embed.debed(self.Out(self.Encdec(self.Embed(inp), self.Embed(out_prev)))))
 
 class Model(object):
     """Trainable encoder-decoder model."""
@@ -35,7 +37,8 @@ class Model(object):
         self.input       = T.imatrix()
         self.output_prev = T.imatrix()
         self.output      = T.imatrix()
-        self.output_oh   = self.network.OH(self.output)
+        OH = OneHot(size_in=self.size_vocab)
+        self.output_oh   = OH(self.output)
         self.output_pred = self.network(self.input, self.output_prev)
         self.cost = CrossEntropy(self.output_oh, self.output_pred)
         self.updater = Adam()
@@ -43,17 +46,7 @@ class Model(object):
         self.train = theano.function([self.input, self.output_prev, self.output ], 
                                       self.cost, updates=self.updates)
         self.predict = theano.function([self.input, self.output_prev], self.output_pred)
-
-def paraphrases(data, split='train'):
-    """Yields pairs of sentences describing the same image from data."""
-    for image in data:
-        if image['split'] == split:
-            sentences = [ s['raw'] for s in image['sentences'] ]
-            for i in range(len(sentences)):
-                for j in range(len(sentences)):
-                    if i != j:
-                        yield (sentences[j], sentences[i])
-
+    
 def sentences(data, split='train'):
     """Yields sentences from data."""
     for image in data:
@@ -73,22 +66,22 @@ def grouper(iterable, n):
     args = [iter(iterable)] * n
     return itertools.izip(*args)
 
-def to_bytes(str):
-    return [ ord(c) for c in str.encode('utf-8') ]
-    
-def from_bytes(bs):
-    return ''.join( [ chr(b) for b in bs]).decode('utf-8')
- 
 def main():
     data = json.load(open('/home/gchrupala/repos/neuraltalk/data/coco/dataset.json'))['images']
     random.shuffle(data)
+    tokenizer = Tokenizer(min_df=10)
+    sents = list(sentences(data))
+    tokenized = tokenizer.fit_transform(sents)
+    PAD = tokenizer.encoder['PAD']
+    END = tokenizer.encoder['END']
     mb_size = 128
-    model = Model(size_vocab=256, size=512, depth=2)
+    print tokenizer.n_features
+    model = Model(size_vocab=tokenizer.n_features, size=512, depth=2)
     for epoch in range(1,11):
         costs = 0 ; N = 0
-        for _j, item in enumerate(grouper(sentences(data), 128)):
+        for _j, item in enumerate(grouper(tokenized, 128)):
             j = _j + 1
-            mb = numpy.array(pad([ [ord('_')]+to_bytes(s)+[ord('#')] for s in item], ord('_')), dtype='int32')
+            mb = numpy.array(pad([[PAD]+s+[END] for s in item], PAD), dtype='int32')
             inp = mb[:,1:]
             out = mb[:,1:]
             out_prev = mb[:,0:-1]
@@ -97,10 +90,11 @@ def main():
             if j % 50 == 0:
                 pred = model.predict(inp, out_prev)
                 for i in range(len(pred)):
-                    orig = repr(from_bytes(inp[i]))
-                    res = repr(''.join([ chr(b) for b in numpy.argmax(pred, axis=2)[i] ]))
-                    print len(orig), orig
-                    print len(res), res
+                    orig = tokenizer.inverse_transform([inp[i]])[0]
+                    res =  tokenizer.inverse_transform([numpy.argmax(pred, axis=2)[i]])[0]
+                    print orig
+                    print res
+        pickle.dump(model.network.params, open('params.{0}.pkl'.format(epoch),'w'))
     
 if __name__ == '__main__':
     main()
