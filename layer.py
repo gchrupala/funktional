@@ -21,7 +21,7 @@ class ComposedLayer(Layer):
     def __init__(self, first, second):
         self.first = first
         self.second = second
-        self.params = self.first + self.second
+        self.params = self.first.params + self.second.params
 
     def __call__(self, inp):
         return self.first(self.second(inp))

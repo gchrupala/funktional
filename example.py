@@ -1,8 +1,9 @@
 # A simple encoder-decoder example with funktional
-
+from __future__ import division 
 import theano
 import numpy
 import json
+import random
 import itertools
 from layer import *
 
@@ -45,7 +46,7 @@ class Model(object):
 
 def paraphrases(data, split='train'):
     """Yields pairs of sentences describing the same image from data."""
-    for image in data['images']:
+    for image in data:
         if image['split'] == split:
             sentences = [ s['raw'] for s in image['sentences'] ]
             for i in range(len(sentences)):
@@ -55,7 +56,7 @@ def paraphrases(data, split='train'):
 
 def sentences(data, split='train'):
     """Yields sentences from data."""
-    for image in data['images']:
+    for image in data:
         if image['split'] == split:
             for sentence in image['sentences']:
                 yield sentence['raw']
@@ -79,17 +80,20 @@ def from_bytes(bs):
     return ''.join( [ chr(b) for b in bs]).decode('utf-8')
  
 def main():
-    data = json.load(open('/home/gchrupala/repos/neuraltalk/data/flickr30k/dataset.json'))
+    data = json.load(open('/home/gchrupala/repos/neuraltalk/data/coco/dataset.json'))['images']
+    random.shuffle(data)
     mb_size = 128
     model = Model(size_vocab=256, size=512, depth=2)
-    for epoch in range(1,6):
+    for epoch in range(1,11):
+        costs = 0 ; N = 0
         for _j, item in enumerate(grouper(sentences(data), 128)):
             j = _j + 1
-            mb = numpy.array(pad([ [ord(' ')]+to_bytes(s) for s in item], ord(' ')), dtype='int32')
+            mb = numpy.array(pad([ [ord('_')]+to_bytes(s)+[ord('#')] for s in item], ord('_')), dtype='int32')
             inp = mb[:,1:]
             out = mb[:,1:]
             out_prev = mb[:,0:-1]
-            print epoch, j, model.train(inp, out_prev, out)
+            costs = costs + model.train(inp, out_prev, out) ; N = N + 1
+            print epoch, j, costs / N
             if j % 50 == 0:
                 pred = model.predict(inp, out_prev)
                 for i in range(len(pred)):
