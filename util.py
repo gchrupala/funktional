@@ -1,9 +1,77 @@
-# Code adapted from https://github.com/IndicoDataSolutions/Passage
+# encoding: utf-8
+# Copyright (c) 2015 Grzegorz Chrupała
+# Some code adapted from https://github.com/IndicoDataSolutions/Passage
 # Copyright (c) 2015 IndicoDataSolutions
 
 import theano
 import theano.tensor as T
 import numpy as np
+
+class IdTable(object):
+    """Map hashable objects to ints and vice versa."""
+    def __init__(self):
+        self.encoder = {}
+        self.decoder = {}
+        self.max = 0
+
+    def to_id(self, s, default=None):
+        i = self.encoder.get(s, default)
+        if i:
+            return i
+        else:
+            i = self.max
+            self.encoder[s] = i
+            self.decoder[i] = s
+            self.max += 1
+            return i
+
+    def from_id(self, i):
+        return self.decoder[i]
+
+
+class IdMapper(object):
+    """Map lists of words to lists of ints."""
+    def __init__(self, min_df=1):
+        self.min_df = min_df
+        self.freq = {}
+        self.ids = IdTable()
+        self.PAD = '<PAD>'
+        self.END = '<END>'
+        self.UNK = '<UNK>'
+        self.PAD_ID = self.ids.to_id(self.PAD)
+        self.END_ID = self.ids.to_id(self.END)
+        self.UNK_ID = self.ids.to_id(self.UNK)
+    
+    def size(self):
+        return len(self.ids.encoder)
+
+    def fit(self, sents):
+        """Prepare model by collecting counts from data."""
+        sents = list(sents)
+        for sent in sents:
+            for word in set(sent):
+                self.freq[word] = self.freq.get(word, 0) + 1
+
+    def transform(self, sents):
+        """Map each word in sents to a unique int using fitted model."""
+        for sent in sents:
+            ids = []
+            for word in sent:
+                if self.freq.get(word, 0) < self.min_df:
+                    ids.append(self.UNK_ID)
+                else:
+                    ids.append(self.ids.to_id(word, default=self.UNK_ID))
+            yield ids
+
+    def inverse_transform(self, sents):
+        """Map each id in sents to the corresponding word."""
+        for sent in sents:
+            return [ self.ids.from_id(i) for i in sent ]
+
+    def fit_transform(self, sents):
+        """Fit followed by transform"""
+        self.fit(sents)
+        return self.transform(sents)
 
 def shared0s(shape, dtype=theano.config.floatX, name=None):
     return sharedX(np.zeros(shape), dtype=dtype, name=name)
@@ -79,3 +147,4 @@ class Adam(object):
             updates.append((p, p_t))
         updates.append((i, i_t))
         return updates
+
