@@ -42,7 +42,8 @@ class Embedding(Layer):
     def __call__(self, inp):
         return self.E[inp]
 
-    def debed(self, inp):
+    def unembed(self, inp):
+        """Invert the embedding."""
         return T.dot(inp, self.E.T)
         
 def theano_one_hot(idx, n):
