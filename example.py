@@ -1,3 +1,5 @@
+# encoding: utf-8
+# Copyright (c) 2015 Grzegorz Chrupała
 # A simple encoder-decoder example with funktional
 from __future__ import division 
 import theano
