@@ -1,3 +1,4 @@
+# encoding: utf-8
 # Copyright (c) 2015 Grzegorz Chrupała
 # Some code adapted from https://github.com/IndicoDataSolutions/Passage
 # Copyright (c) 2015 IndicoDataSolutions
