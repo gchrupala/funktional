@@ -100,7 +100,6 @@ def main():
         random.seed(args.seed)
     mapper = util.IdMapper(min_df=10)
     sents = shuffled(list(mapper.fit_transform([ line.split() for line in open(args.train) ])))
-    print mapper.size()
     sents_valid = list(mapper.transform([line.split() for line in open(args.valid) ]))
     mb_size = 128
     model = Model(size_vocab=mapper.size(), size=args.size, depth=args.depth)
@@ -115,7 +114,7 @@ def main():
                 if j % 500 == 0:
                     cost_valid = valid_loss(model, sents_valid, mapper.BEG_ID, mapper.END_ID)
                     print epoch, j, "valid", cost_valid
-                if j % 50 == 0:
+                if j % 100 == 0:
                     pred = model.predict(inp, out_prev)
                     for i in range(len(pred)):
                         orig = [ w for w in list(mapper.inverse_transform([inp[i]]))[0] 
@@ -126,6 +125,7 @@ def main():
                         log.write("\n")
                         log.write("{}".format(' '.join(res)))
                         log.write("\n")
+                    log.flush()
         pickle.dump(model, gzip.open('model.{0}.pkl.gz'.format(epoch),'w'))
     
 if __name__ == '__main__':
