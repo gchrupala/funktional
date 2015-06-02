@@ -63,6 +63,8 @@ Encdec = EncoderDecoder(size_in, size, size_out)
 output = softmax3d(Encdec(input, output_prev))
 ```
 
+See `layer.py` for more example of layer compositions.
+
 Limitations
 -----------
 
