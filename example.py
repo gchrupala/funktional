@@ -128,7 +128,7 @@ def main():
                         log.write("{}".format(' '.join(res)))
                         log.write("\n")
                     log.flush()
-        pickle.dump(model, gzip.open('model.{0}.pkl.gz'.format(epoch),'w'))
+            pickle.dump(model, gzip.open('model.{0}.pkl.gz'.format(epoch),'w'))
     
 if __name__ == '__main__':
     main()
