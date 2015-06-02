@@ -16,7 +16,7 @@ class IdTable(object):
 
     def to_id(self, s, default=None):
         i = self.encoder.get(s, default)
-        if i:
+        if i is not None:
             return i
         else:
             i = self.max
@@ -52,26 +52,32 @@ class IdMapper(object):
             for word in set(sent):
                 self.freq[word] = self.freq.get(word, 0) + 1
 
+    def fit_transform(self, sents):
+        """Map each word in sents to a unique int, adding new words."""
+        sents = list(sents)
+        self.fit(sents)
+        return self._transform(sents, update=True)
+
     def transform(self, sents):
-        """Map each word in sents to a unique int using fitted model."""
+        """Map each word in sents to a unique int, without adding new words."""
+        return self._transform(sents, update=False)
+            
+    def _transform(self, sents, update=False):
+        default = None if update else self.UNK_ID
         for sent in sents:
             ids = []
             for word in sent:
                 if self.freq.get(word, 0) < self.min_df:
                     ids.append(self.UNK_ID)
                 else:
-                    ids.append(self.ids.to_id(word, default=self.UNK_ID))
+                    ids.append(self.ids.to_id(word, default=default))
             yield ids
-
+        
     def inverse_transform(self, sents):
         """Map each id in sents to the corresponding word."""
         for sent in sents:
             return [ self.ids.from_id(i) for i in sent ]
 
-    def fit_transform(self, sents):
-        """Fit followed by transform"""
-        self.fit(sents)
-        return self.transform(sents)
 
 def shared0s(shape, dtype=theano.config.floatX, name=None):
     return sharedX(np.zeros(shape), dtype=dtype, name=name)
