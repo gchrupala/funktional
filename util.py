@@ -35,10 +35,10 @@ class IdMapper(object):
         self.min_df = min_df
         self.freq = {}
         self.ids = IdTable()
-        self.PAD = '<PAD>'
+        self.BEG = '<BEG>'
         self.END = '<END>'
         self.UNK = '<UNK>'
-        self.PAD_ID = self.ids.to_id(self.PAD)
+        self.BEG_ID = self.ids.to_id(self.BEG)
         self.END_ID = self.ids.to_id(self.END)
         self.UNK_ID = self.ids.to_id(self.UNK)
     
@@ -76,7 +76,7 @@ class IdMapper(object):
     def inverse_transform(self, sents):
         """Map each id in sents to the corresponding word."""
         for sent in sents:
-            return [ self.ids.from_id(i) for i in sent ]
+            yield [ self.ids.from_id(i) for i in sent ]
 
 
 def shared0s(shape, dtype=theano.config.floatX, name=None):
