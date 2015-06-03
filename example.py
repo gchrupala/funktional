@@ -21,7 +21,6 @@ class EncoderDecoder(Layer):
         self.size     = size
         self.depth    = depth
         self.Embed    = Embedding(self.size_vocab, self.size)
-        self.Unembed  = self.Embed.unembed
         encoder = lambda size_in, size: StackedGRUH0(size_in, size, self.depth)
         decoder = lambda size_in, size: StackedGRU(size_in, size, self.depth)
         self.Encdec   = EncoderDecoderGRU(self.size, self.size, self.size, 
@@ -31,7 +30,7 @@ class EncoderDecoder(Layer):
         self.params   = self.Embed.params + self.Encdec.params + self.Out.params
         
     def __call__(self, inp, out_prev):
-        return softmax3d(self.Unembed(self.Out(self.Encdec(self.Embed(inp), self.Embed(out_prev)))))
+        return softmax3d(self.Embed.unembed(self.Out(self.Encdec(self.Embed(inp), self.Embed(out_prev)))))
 
 class Model(object):
     """Trainable encoder-decoder model."""
