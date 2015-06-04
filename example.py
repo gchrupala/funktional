@@ -10,6 +10,7 @@ import cPickle as pickle
 import argparse
 import gzip
 import sys
+import os
 import util
 import copy
 from layer import *
@@ -28,7 +29,7 @@ class EncoderDecoder(Layer):
                                           decoder=decoder)
         self.Out      = Dense(size_in=self.size, size_out=self.size)
         self.params   = self.Embed.params + self.Encdec.params + self.Out.params
-        
+
     def __call__(self, inp, out_prev):
         return softmax3d(self.Embed.unembed(self.Out(self.Encdec(self.Embed(inp), self.Embed(out_prev)))))
 
@@ -42,6 +43,7 @@ class Model(object):
         self.input       = T.imatrix()
         self.output_prev = T.imatrix()
         self.output      = T.imatrix()
+        self.projection  = last(self.network.Encdec.Encode(self.network.Embed(self.input)))
         OH = OneHot(size_in=self.size_vocab)
         self.output_oh   = OH(self.output)
         self.output_pred = self.network(self.input, self.output_prev)
@@ -51,9 +53,12 @@ class Model(object):
         self.train = theano.function([self.input, self.output_prev, self.output ], 
                                       self.cost, updates=self.updates)
         self.predict = theano.function([self.input, self.output_prev], self.output_pred)
+        self.project = theano.function([self.input], self.projection)
         # Like train, but no updates
         self.loss = theano.function([self.input, self.output_prev, self.output ], self.cost)
-
+        
+        
+        
 def pad(xss, padding):
     max_len = max((len(xs) for xs in xss))
     def pad_one(xs):
@@ -74,9 +79,9 @@ def batch(item, BEG, END):
     out_prev = mb[:,0:-1]
     return (inp, out_prev, out)
 
-def valid_loss(model, valid, BEG, END):
+def valid_loss(model, valid, BEG, END, batch_size=128):
     costs = 0.0; N = 0
-    for _j, item in enumerate(grouper(valid, 256)):
+    for _j, item in enumerate(grouper(valid, batch_size)):
         j = _j + 1
         inp, out_prev, out = batch(item, BEG, END)
         costs = costs + model.loss(inp, out_prev, out) ; N = N + 1
@@ -88,32 +93,52 @@ def shuffled(x):
     return y
 
 def main():
-    parser = argparse.ArgumentParser(description="Stacked recurrent autoencoder for sentences.")
-    parser.add_argument('--size',   type=int, default=512,       help="Size of embeddings and hidden layers")
-    parser.add_argument('--depth',  type=int, default=2,         help="Number of hidden layers")
-    parser.add_argument('--epochs', type=int, default=1,         help="Number of training epochs")
-    parser.add_argument('--seed',   type=int, default=None,      help="Random seed")
-    parser.add_argument('--log',    type=str, default='log.txt', help="Path to log file")
-    parser.add_argument('train',    type=str,                    help="Path to training data")
-    parser.add_argument('valid',    type=str,                    help="Path to validation data")
+    parser = argparse.ArgumentParser(description='Stacked recurrent autoencoder for sentences.')
+    subparsers = parser.add_subparsers(title='Commands',
+                                       dest='command',
+                                       description='Valid commands',
+                                       help='Additional help')
+
+    parser_train = subparsers.add_parser('train', help='Train a new model from data')
+    parser_train.add_argument('--size',   type=int, default=512,       help='Size of embeddings and hidden layers')
+    parser_train.add_argument('--depth',  type=int, default=2,         help='Number of hidden layers')
+    parser_train.add_argument('--epochs', type=int, default=1,         help='Number of training epochs')
+    parser_train.add_argument('--batch_size', type=int, default=128,   help='Number of examples in minibatch')
+    parser_train.add_argument('--seed',   type=int, default=None,      help='Random seed')
+    parser_train.add_argument('--log',    type=str, default='log.txt', help='Path to log file')
+    parser_train.add_argument('--model_path', type=str, default='.',       help='Path to model directory')
+    parser_train.add_argument('train_file',    type=str,                    help='Path to training data')
+    parser_train.add_argument('valid_file',    type=str,                    help='Path to validation data')
+
+    parser_proj = subparsers.add_parser('project', help='Project data using trained model')
+    parser_proj.add_argument('model_path',     type=str,               help='Path to model')
+    parser_proj.add_argument('input_file',     type=str,               help='Path to data')
+    parser_proj.add_argument('output_file',    type=str,               help='Path to output data')
     args = parser.parse_args()
+    if args.command == 'train':
+        train(args)
+    elif args.command == 'project':
+        project(args)
+
+def train(args):
     if args.seed is not None:
         random.seed(args.seed)
     mapper = util.IdMapper(min_df=10)
-    sents = shuffled(list(mapper.fit_transform([ line.split() for line in open(args.train) ])))
-    sents_valid = list(mapper.transform([line.split() for line in open(args.valid) ]))
+    sents = shuffled(list(mapper.fit_transform([ line.split() for line in open(args.train_file) ])))
+    sents_valid = list(mapper.transform([line.split() for line in open(args.valid_file) ]))
+    pickle.dump(mapper, gzip.open(os.path.join(args.model_path, 'mapper.pkl.gz'),'w'))
     mb_size = 128
     model = Model(size_vocab=mapper.size(), size=args.size, depth=args.depth)
     with open(args.log,'w') as log:
         for epoch in range(1,args.epochs + 1):
             costs = 0 ; N = 0
-            for _j, item in enumerate(grouper(sents, 128)):
+            for _j, item in enumerate(grouper(sents, args.batch_size)):
                 j = _j + 1
                 inp, out_prev, out = batch(item, mapper.BEG_ID, mapper.END_ID)
                 costs = costs + model.train(inp, out_prev, out) ; N = N + 1
                 print epoch, j, "train", costs / N
                 if j % 500 == 0:
-                    cost_valid = valid_loss(model, sents_valid, mapper.BEG_ID, mapper.END_ID)
+                    cost_valid = valid_loss(model, sents_valid, mapper.BEG_ID, mapper.END_ID, batch_size=args.batch_size)
                     print epoch, j, "valid", cost_valid
                 if j % 100 == 0:
                     pred = model.predict(inp, out_prev)
@@ -127,7 +152,16 @@ def main():
                         log.write("{}".format(' '.join(res)))
                         log.write("\n")
                     log.flush()
-            pickle.dump(model, gzip.open('model.{0}.pkl.gz'.format(epoch),'w'))
-    
+            pickle.dump(model, gzip.open(os.path.join(args.model_path,'model.{0}.pkl.gz'.format(epoch)),'w'))
+    pickle.dump(model, gzip.open(os.path.join(args.model_path, 'model.pkl.gz'), 'w'))
+
+def project(args):
+    model = pickle.load(gzip.open(os.path.join(args.model_path, 'model.pkl.gz')))
+    mapper = pickle.load(gzip.open(os.path.join(args.model_path, 'mapper.pkl.gz')))
+    sents = list(mapper.transform([line.split() for line in open(args.input_file) ]))
+    projections = numpy.vstack([  model.project(batch(item, mapper.BEG_ID, mapper.END_ID)[0]) 
+                                  for item in grouper(sents, 128) ])
+    pickle.dump(projections, gzip.open(args.output_file, 'w'))
+
 if __name__ == '__main__':
     main()
