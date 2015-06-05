@@ -23,7 +23,7 @@ class LM(Layer):
         self.Predict = Dense(self.size, self.size_embed)
         self.params = params(self.Encode, self.Predict)
 
-    def __call__(self, inp):
+    def __call__(self, inp, *_): # Ignores other inputs
         return self.Predict(self.Encode(inp))
 
 class AE(Layer):
@@ -69,3 +69,29 @@ def MultitaskAE(size_vocab, size_embed, size, size_out, depth):
     return Multitask(size_vocab, size_embed, size, size_out, depth, AE)
 
         
+class Imaginet(object):
+    """Trainable imaginet model."""
+
+    def __init__(self, size_vocab, size_embed, size, size_out, depth, network, alpha=0.5):
+        autoassign(locals())
+        self.network = network(self.size_vocab, self.size_embed, self.size, self.size_out, self.depth)
+        input         = T.imatrix()
+        output_t_prev = T.imatrix()
+        output_t      = T.imatrix()
+        output_v      = T.fmatrix()
+        OH = OneHot(size_in=self.size_vocab)
+        output_t_oh   = OH(output)
+        output_v_pred, output_t_pred = self.network(input, output_t_prev)
+        cost_T = CrossEntropy(output_t_oh, output_t_pred)
+        # FIXME also enable MSE?
+        cost_V = CosineDistance(output_v, output_v_pred)
+        cost = self.alpha * cost_T + (1.0 - self.alpha) * cost_V
+        self.updater = Adam()
+        updates = self.updater.get_updates(self.network.params, cost)
+        self.train = theano.function([input, output_v, output_t_prev, output_t ], 
+                                      cost, updates=updates)
+        self.predict = theano.function([input, output_t_prev], [output_v, output_t_pred])
+
+        # Like train, but no updates
+        self.loss = theano.function([input, output_v, output_t_prev, output_t ], cost)
+
