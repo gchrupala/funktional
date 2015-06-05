@@ -79,11 +79,20 @@ def batch(item, BEG, END):
     out_prev = mb[:,0:-1]
     return (inp, out_prev, out)
 
-def valid_loss(model, valid, BEG, END, batch_size=128):
+def batch_para(item, BEG, END):
+    """Prepare minibatch."""
+    mb_inp = numpy.array(pad([[BEG]+s+[END] for s,_ in item], END), dtype='int32')
+    mb_out = numpy.array(pad([[BEG]+r+[END] for _,r in item], END), dtype='int32')
+    inp = mb_inp[:,1:]
+    out = mb_out[:,1:]
+    out_prev = mb_out[:,0:-1]
+    return (inp, out_prev, out)
+
+def valid_loss(model, inp, out, BEG, END, batch_size=128):
     costs = 0.0; N = 0
-    for _j, item in enumerate(grouper(valid, batch_size)):
+    for _j, item in enumerate(grouper(itertools.izip(inp, out), batch_size)):
         j = _j + 1
-        inp, out_prev, out = batch(item, BEG, END)
+        inp, out_prev, out = batch_para(item, BEG, END)
         costs = costs + model.loss(inp, out_prev, out) ; N = N + 1
     return costs / N
 
@@ -109,23 +118,31 @@ def main():
     parser_train.add_argument('--model_path', type=str, default='.',       help='Path to model directory')
     parser_train.add_argument('train_file',    type=str,                    help='Path to training data')
     parser_train.add_argument('valid_file',    type=str,                    help='Path to validation data')
-
-    parser_proj = subparsers.add_parser('project', help='Project data using trained model')
+    parser_train.add_argument('--train_file_out', type=str, default=None,   help='Path to training data output (unless same as input)')
+    parser_train.add_argument('--valid_file_out', type=str, default=None,   help='Path to validation data output (unless same as input')
+    parser_proj = subparsers.add_parser('encode', help='Encode data using trained model')
     parser_proj.add_argument('model_path',     type=str,               help='Path to model')
     parser_proj.add_argument('input_file',     type=str,               help='Path to data')
     parser_proj.add_argument('output_file',    type=str,               help='Path to output data')
     args = parser.parse_args()
     if args.command == 'train':
-        train(args)
-    elif args.command == 'project':
-        project(args)
+        train_cmd(args)
+    elif args.command == 'encode':
+        encode_cmd(args)
 
-def train(args):
+def train_cmd(args):
     if args.seed is not None:
         random.seed(args.seed)
     mapper = util.IdMapper(min_df=10)
-    sents = shuffled(list(mapper.fit_transform([ line.split() for line in open(args.train_file) ])))
-    sents_valid = list(mapper.transform([line.split() for line in open(args.valid_file) ]))
+    text_in      = ( line.split() for line in open(args.train_file) )
+    text_out     = text_in if args.train_file_out is None else ( line.split() for line in open(args.train_file_out) )
+    text_val_in  = (line.split() for line in open(args.valid_file))
+    text_val_out = text_val_in if args.valid_file_out is None else (line.split() for line in open(args.valid_file_out))
+    sents_in      = mapper.fit_transform(text_in)
+    sents_out     = mapper.transform(text_out)
+    sents_val_in  = list(mapper.transform(text_val_in))
+    sents_val_out = list(mapper.transform(text_val_out))
+    sents = shuffled(list(itertools.izip(sents_in, sents_out)))
     pickle.dump(mapper, gzip.open(os.path.join(args.model_path, 'mapper.pkl.gz'),'w'))
     mb_size = 128
     model = Model(size_vocab=mapper.size(), size=args.size, depth=args.depth)
@@ -134,11 +151,11 @@ def train(args):
             costs = 0 ; N = 0
             for _j, item in enumerate(grouper(sents, args.batch_size)):
                 j = _j + 1
-                inp, out_prev, out = batch(item, mapper.BEG_ID, mapper.END_ID)
+                inp, out_prev, out = batch_para(item, mapper.BEG_ID, mapper.END_ID)
                 costs = costs + model.train(inp, out_prev, out) ; N = N + 1
                 print epoch, j, "train", costs / N
                 if j % 500 == 0:
-                    cost_valid = valid_loss(model, sents_valid, mapper.BEG_ID, mapper.END_ID, batch_size=args.batch_size)
+                    cost_valid = valid_loss(model, sents_val_in, sents_val_out, mapper.BEG_ID, mapper.END_ID, batch_size=args.batch_size)
                     print epoch, j, "valid", cost_valid
                 if j % 100 == 0:
                     pred = model.predict(inp, out_prev)
@@ -155,13 +172,15 @@ def train(args):
             pickle.dump(model, gzip.open(os.path.join(args.model_path,'model.{0}.pkl.gz'.format(epoch)),'w'))
     pickle.dump(model, gzip.open(os.path.join(args.model_path, 'model.pkl.gz'), 'w'))
 
-def project(args):
+def encode(model, mapper, sents):
+    """Return projections of `sents` to the final hidden state of the encoder of `model`."""
+    return numpy.vstack([  model.project(batch(item, mapper.BEG_ID, mapper.END_ID)[0]) 
+                           for item in grouper(mapper.transform(sents), 128) ])
+def encode_cmd(args):
     model = pickle.load(gzip.open(os.path.join(args.model_path, 'model.pkl.gz')))
     mapper = pickle.load(gzip.open(os.path.join(args.model_path, 'mapper.pkl.gz')))
-    sents = list(mapper.transform([line.split() for line in open(args.input_file) ]))
-    projections = numpy.vstack([  model.project(batch(item, mapper.BEG_ID, mapper.END_ID)[0]) 
-                                  for item in grouper(sents, 128) ])
-    pickle.dump(projections, gzip.open(args.output_file, 'w'))
+    sents = [line.split() for line in open(args.input_file) ]
+    pickle.dump(encode(model, mapper, sents), gzip.open(args.output_file, 'w'))
 
 if __name__ == '__main__':
     main()
