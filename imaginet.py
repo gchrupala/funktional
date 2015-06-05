@@ -1,6 +1,6 @@
 from layer import *
 import util
-from util import autoassign
+from util import autoassign, params
 
 class Visual(Layer):
     """Encode sequence of (embedded) words into a visual vector."""
