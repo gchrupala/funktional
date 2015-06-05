@@ -13,6 +13,7 @@ import sys
 import os
 import util
 import copy
+import time
 from layer import *
 
 class EncoderDecoder(Layer):
@@ -152,7 +153,7 @@ def train_cmd(args):
             for _j, item in enumerate(grouper(sents, args.batch_size)):
                 j = _j + 1
                 inp, out_prev, out = batch_para(item, mapper.BEG_ID, mapper.END_ID)
-                costs = costs + model.train(inp, out_prev, out) ; N = N + 1
+                costs = costs + try_alloc(lambda: model.train(inp, out_prev, out), attempts=5, pause=10) ; N = N + 1
                 print epoch, j, "train", costs / N
                 if j % 500 == 0:
                     cost_valid = valid_loss(model, sents_val_in, sents_val_out, mapper.BEG_ID, mapper.END_ID, batch_size=args.batch_size)
@@ -172,6 +173,18 @@ def train_cmd(args):
             pickle.dump(model, gzip.open(os.path.join(args.model_path,'model.{0}.pkl.gz'.format(epoch)),'w'))
     pickle.dump(model, gzip.open(os.path.join(args.model_path, 'model.pkl.gz'), 'w'))
 
+def try_alloc(fn, attempts=1, pause=1):
+    '''Try executing function `fn`, recovering from MemoryError `attempts` times.'''
+    try:
+        return fn()
+    except MemoryError as e:
+        if attempts == 0:
+            raise e
+        else:
+            sys.stderr.write("MemoryError: Trying again {0} times\n".format(attempts))
+            time.sleep(pause)
+            return try_alloc(fn, attempts=attempts-1, pause=pause*2)
+        
 def encode(model, mapper, sents):
     """Return projections of `sents` to the final hidden state of the encoder of `model`."""
     return numpy.vstack([  model.project(batch(item, mapper.BEG_ID, mapper.END_ID)[0]) 
