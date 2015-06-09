@@ -65,7 +65,7 @@ output = softmax3d(Encdec(input, output_prev))
 
 See [layer.py](layer.py) for more examples of layer compositions.
 
-The file [example.py](example.py) uses funktional to implement a
+The file [autoencoder.py](autoencoder.py) uses funktional to implement a
 recurrent auto-encoder, which learns to map sentences to a hidden
 state vector and to decode the vector into the original sentence.  A
 GPU is recommended to run this example.
