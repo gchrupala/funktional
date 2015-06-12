@@ -168,12 +168,12 @@ class EncoderDecoderGRU(Layer):
 
 class StackedGRU(Layer):
     """A stack of GRUs."""
-    def __init__(self, size_in, size, depth=2):
+    def __init__(self, size_in, size, depth=2, **kwargs):
         self.size_in = size_in
         self.size = size
         self.depth = depth
-        self.bottom = GRU(self.size_in, self.size)
-        layers = [ GRUH0(self.size, self.size)
+        self.bottom = GRU(self.size_in, self.size, **kwargs)
+        layers = [ GRUH0(self.size, self.size, **kwargs)
                    for _ in range(1,self.depth) ]
         self.stack = reduce(lambda z, x: z.compose(x), layers)
         self.params = self.stack.params
@@ -181,7 +181,7 @@ class StackedGRU(Layer):
     def __call__(self, h0, inp, repeat_h0=0):
         return self.stack(self.bottom(h0, inp, repeat_h0=repeat_h0))
         
-def StackedGRUH0(size_in, size, depth):
+def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
-    return WithH0(Zeros(size), StackedGRU(size_in, size, depth))
+    return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
 
