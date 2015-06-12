@@ -109,6 +109,9 @@ def rectify(x):
 def clipped_rectify(x):
 	return T.clip((x + abs(x)) / 2.0, 0., 5.)
 
+def sigmoid(x):
+    return 1./(1. + T.exp(-x))
+
 def steeper_sigmoid(x):
 	return 1./(1. + T.exp(-3.75 * x))
 
