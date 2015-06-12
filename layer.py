@@ -77,14 +77,10 @@ class GRU(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states.
     """
-    def __init__(self, size_in, size):
-        self.size_in = size_in
-        self.size = size
-        self.activation = tanh
-        self.gate_activation = steeper_sigmoid
-        self.init = orthogonal
-        self.size = size
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid):
+        autoassign(locals())
 
+        self.init = orthogonal
         self.w_z = self.init((self.size_in, self.size))
         self.w_r = self.init((self.size_in, self.size))
 
@@ -140,9 +136,9 @@ class WithH0(Layer):
     def __call__(self, inp):
         return self.layer(self.h0(), inp, repeat_h0=1)
 
-def GRUH0(size_in, size):
+def GRUH0(size_in, size, **kwargs):
     """A GRU layer with its own initial state."""
-    return WithH0(Zeros(size), GRU(size_in, size))
+    return WithH0(Zeros(size), GRU(size_in, size, **kwargs))
     
 def last(x):
     """Returns the last time step of all sequences in x."""
