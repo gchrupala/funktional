@@ -6,6 +6,7 @@
 import theano
 import theano.tensor as T
 import numpy as np
+import itertools
 
 class IdTable(object):
     """Map hashable objects to ints and vice versa."""
@@ -127,6 +128,12 @@ def CrossEntropy(y_true, y_pred):
 def MeanSquaredError(y_true, y_pred):
     return T.sqr(y_pred - y_true).mean()
 
+def CosineDistance(U, V):
+    U_norm = U / U.norm(2,  axis=1).reshape((U.shape[0], 1))
+    V_norm = V / V.norm(2, axis=1).reshape((V.shape[0], 1))
+    W = (U_norm * V_norm).sum(axis=1)
+    return (1 - W).mean()
+                                
 class Adam(object):
     """Adam: a Method for Stochastic Optimization, Kingma and Ba. http://arxiv.org/abs/1412.6980."""
 
@@ -165,3 +172,20 @@ def autoassign(locs):
 
 def params(*layers):
     return sum([ layer.params for layer in layers ], [])
+
+def pad(xss, padding):
+    max_len = max((len(xs) for xs in xss))
+    def pad_one(xs):
+        return xs + [ padding for _ in range(0,(max_len-len(xs))) ]
+    return [ pad_one(xs) for xs in xss ]
+
+def grouper(iterable, n):
+    "Collect data into fixed-length chunks or blocks"
+    # grouper('ABCDEFG', 3) --> ABC DEF G
+    args = [iter(iterable)] * n
+    return itertools.izip(*args)
+
+def shuffled(x):
+    y = copy.copy(x)
+    random.shuffle(y)
+    return y

@@ -11,7 +11,6 @@ import numpy
 class Layer(object):
     """Neural net layer. Maps (a number of) theano tensors to a theano tensor."""
     def __init__(self):
-        self.tag = []
         self.params = []
 
     def __call__(self, *inp):
@@ -21,6 +20,11 @@ class Layer(object):
         """Compose itself with another layer."""
         return ComposedLayer(self, l2)
 
+class Identity(Layer):
+    """Return the input unmodified."""
+    def __call__(self, inp):
+        return inp
+    
 class ComposedLayer(Layer):
     
     def __init__(self, first, second):
@@ -175,8 +179,8 @@ class StackedGRU(Layer):
         self.bottom = GRU(self.size_in, self.size, **kwargs)
         layers = [ GRUH0(self.size, self.size, **kwargs)
                    for _ in range(1,self.depth) ]
-        self.stack = reduce(lambda z, x: z.compose(x), layers)
-        self.params = self.stack.params
+        self.stack = reduce(lambda z, x: z.compose(x), layers, Identity())
+        self.params = self.stack.params + self.bottom.params
 
     def __call__(self, h0, inp, repeat_h0=0):
         return self.stack(self.bottom(h0, inp, repeat_h0=repeat_h0))
