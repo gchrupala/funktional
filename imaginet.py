@@ -96,5 +96,5 @@ class Imaginet(object):
         self.predict = theano.function([input, output_t_prev], [output_v_pred, output_t_pred])
 
         # Like train, but no updates
-        self.loss = theano.function([input, output_v, output_t_prev, output_t ], cost)
+        self.loss = theano.function([input, output_v, output_t_prev, output_t ], [cost, cost_T, cost_V])
 
