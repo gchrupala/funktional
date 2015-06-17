@@ -56,9 +56,9 @@ class Multitask(Layer):
 
     def __call__(self, inp, *args):
         inp_e = self.Embed(inp)
-        rest  = [ self.Embed(arg) for arg in args ]
+        args_e  = [ self.Embed(arg) for arg in args ]
         img   = self.Visual(inp_e)
-        txt   = softmax3d(self.Embed.unembed(self.Textual(*rest)))
+        txt   = softmax3d(self.Embed.unembed(self.Textual(inp_e, *args_e)))
         return (img, txt)
 
 def MultitaskLM(size_vocab, size_embed, size, size_out, depth, gru_activation=tanh):
@@ -91,10 +91,12 @@ class Imaginet(object):
         cost = self.alpha * cost_T + (1.0 - self.alpha) * cost_V
         self.updater = Adam()
         updates = self.updater.get_updates(self.network.params, cost)
+        # TODO better way of dealing with needed/unneeded output_t_prev?
         self.train = theano.function([input, output_v, output_t_prev, output_t ], 
-                                      [cost, cost_T, cost_V], updates=updates)
-        self.predict = theano.function([input, output_t_prev], [output_v_pred, output_t_pred])
+                                      [cost, cost_T, cost_V], updates=updates, on_unused_input='warn')
+        self.predict = theano.function([input, output_t_prev], [output_v_pred, output_t_pred], on_unused_input='warn')
 
         # Like train, but no updates
-        self.loss = theano.function([input, output_v, output_t_prev, output_t ], [cost, cost_T, cost_V])
+        self.loss = theano.function([input, output_v, output_t_prev, output_t ], [cost, cost_T, cost_V],
+                                    on_unused_input='warn')
 
