@@ -18,7 +18,7 @@ import time
 from collections import Counter
 import imagernn.data_provider as dp
 from layer import *
-from imaginet import Imaginet, MultitaskLM, MultitaskAE
+from imaginet import Imaginet, MultitaskLM, MultitaskED
 
 def batch_imaginet(item, BEG, END):
     """Prepare minibatch."""
@@ -116,7 +116,7 @@ def train_cmd( dataset='coco',
                     costs_valid = valid_loss(model, sents_val_in, sents_val_out, images_val,
                                              mapper.BEG_ID, mapper.END_ID)
                     print epoch, j, j, "valid", stats(costs_valid)
-                          
+                sys.stdout.flush()
                 # TODO run validation
             pickle.dump(model, gzip.open(os.path.join(model_path, 'model.{0}.pkl.gz'.format(epoch)),'w'))
         pickle.dump(model, gzip.open(os.path.join(model_path, 'model.pkl.gz'), 'w'))

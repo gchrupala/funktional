@@ -4,7 +4,7 @@ from util import CosineDistance
 from util import autoassign, params, clipped_rectify
 
 class Visual(Layer):
-    """Encode sequence of (embedded) words into a visual vector."""
+    """Encode sequence of inputs into a visual vector."""
 
     def __init__(self, size_embed, size, size_out, depth, gru_activation=tanh):
         autoassign(locals())
@@ -16,7 +16,10 @@ class Visual(Layer):
         return self.Project(last(self.Encode(inp)))
 
 class LM(Layer):
-    """Predict next word in sequence of (embedded) words."""
+    """Predict next word in sequence of outputs.
+
+    Ignores input.
+    """
 
     def __init__(self, size_embed, size, depth, gru_activation=tanh):
         autoassign(locals())
@@ -24,11 +27,14 @@ class LM(Layer):
         self.Predict = Dense(self.size, self.size_embed)
         self.params = params(self.Encode, self.Predict)
 
-    def __call__(self, inp, *_): # Ignores other inputs
-        return self.Predict(self.Encode(inp))
+    def __call__(self, inp, out_prev): # Decodes output from scratch (ignores input)
+        return self.Predict(self.Encode(out_prev))
 
-class AE(Layer):
-    """Autoencode a sequence of (embedded) words."""
+class ED(Layer):
+    """Encode a sequence of inputs, and decode into a sequence of outputs.
+
+    Decoder is conditioned on the final state of the encoder, and output at position -1.
+    """
 
     def __init__(self, size_embed, size, depth, gru_activation=tanh):
         autoassign(locals())
@@ -65,9 +71,9 @@ def MultitaskLM(size_vocab, size_embed, size, size_out, depth, gru_activation=ta
     """Visual encoder combined with a language model."""
     return Multitask(size_vocab, size_embed, size, size_out, depth, LM, gru_activation=gru_activation)
 
-def MultitaskAE(size_vocab, size_embed, size, size_out, depth, gru_activation=tanh):
-    """Visual encoder combined with a recurrent autoencoder."""
-    return Multitask(size_vocab, size_embed, size, size_out, depth, AE, gru_activation=gru_activation)
+def MultitaskED(size_vocab, size_embed, size, size_out, depth, gru_activation=tanh):
+    """Visual encoder combined with a recurrent encoder-decoder."""
+    return Multitask(size_vocab, size_embed, size, size_out, depth, ED, gru_activation=gru_activation)
 
         
 class Imaginet(object):
