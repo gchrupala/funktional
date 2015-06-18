@@ -122,8 +122,13 @@ def softmax3d(inp):
     result = e_x / e_x.sum(axis=1).dimshuffle(0, 'x')
     return result.reshape(inp.shape)
 
+epsilon = 1e-7
+
 def CrossEntropy(y_true, y_pred):
-    return T.nnet.categorical_crossentropy(T.clip(y_pred, 1e-7, 1.0-1e-7), y_true).mean()
+    return T.nnet.categorical_crossentropy(T.clip(y_pred, epsilon, 1.0-epsilon), y_true).mean()
+
+def BinaryCrossEntropy(y_true, y_pred):
+    return T.nnet.binary_crossentropy(T.clip(y_pred, epsilon, 1.0-epsilon), y_true).mean()
 
 def MeanSquaredError(y_true, y_pred):
     return T.sqr(y_pred - y_true).mean()
