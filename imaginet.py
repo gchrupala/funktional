@@ -106,3 +106,9 @@ class Imaginet(object):
         self.loss = theano.function([input, output_v, output_t_prev, output_t ], [cost, cost_T, cost_V],
                                     on_unused_input='warn')
 
+# Functions added outside the class do not interfere with loading of older versions
+def predictor_v(model):
+    """Return function to predict image vector from input using `model`."""
+    input    = T.imatrix()
+    return theano.function([input], model.network.Visual(model.network.Embed(input)))
+    
