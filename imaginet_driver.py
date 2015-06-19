@@ -18,18 +18,27 @@ import time
 from collections import Counter
 import imagernn.data_provider as dp
 from layer import *
-from imaginet import Imaginet, MultitaskLM, MultitaskED
+from imaginet import Imaginet, MultitaskLM, MultitaskED, predictor_v
+import evaluate
+import json
 
-def batch_imaginet(item, BEG, END):
+def batch_inp(sents, BEG, END):
+    mb = padder(sents, BEG, END)
+    return mb[:,1:]
+
+def padder(sents, BEG, END):
+    return numpy.array(pad([[BEG]+sent+[END] for sent in sents], END), dtype='int32')
+
+def batch(item, BEG, END):
     """Prepare minibatch."""
-    mb_inp = numpy.array(pad([[BEG]+s+[END] for s,_,_ in item], END), dtype='int32')
-    mb_out_t = numpy.array(pad([[BEG]+r+[END] for _,r,_ in item], END), dtype='int32')
+    mb_inp = padder([s for s,_,_ in item])
+    mb_out_t = padder([r for _,r,_ in item])
     inp = mb_inp[:,1:]
     out_t = mb_out_t[:,1:]
     out_prev_t = mb_out_t[:,0:-1]
     out_v = numpy.array([ t for _,_,t in item ], dtype='float32')
     return (inp, out_v, out_prev_t, out_t)
-
+    
 def valid_loss(model, sents_val_in, sents_val_out, images_val, BEG_ID, END_ID,
                batch_size=128):
     """Apply model to validation data and return loss info."""
@@ -51,7 +60,10 @@ class NoScaler():
     def inverse_transform(self, x):
         return x
 
-def train_cmd( dataset='coco',
+def stats(c):
+    return " ".join(map(str, [c['cost_t']/c['N'], c['cost_v']/c['N'], c['cost']/c['N']]))
+
+def cmd_train( dataset='coco',
                model_path='.',
                hidden_size=512,
                embedding_size=None,
@@ -117,9 +129,37 @@ def train_cmd( dataset='coco',
                                              mapper.BEG_ID, mapper.END_ID)
                     print epoch, j, j, "valid", stats(costs_valid)
                 sys.stdout.flush()
-                # TODO run validation
             pickle.dump(model, gzip.open(os.path.join(model_path, 'model.{0}.pkl.gz'.format(epoch)),'w'))
         pickle.dump(model, gzip.open(os.path.join(model_path, 'model.pkl.gz'), 'w'))
         
-def stats(c):
-    return " ".join(map(str, [c['cost_t']/c['N'], c['cost_v']/c['N'], c['cost']/c['N']]))
+def cmd_predict_v(dataset='coco',
+                  model_path='.',
+                  batch_size=128,
+                  output='predict_v.npy'):
+    def load(f):
+        return pickle.load(gzip.open(os.path.join(model_path, f)))
+    mapper, scaler, model = map(load, ['mapper.pkl.gz','scaler.pkl.gz','model.pkl.gz'])
+    predict_v = predictor_v(model)
+    prov   = dp.getDataProvider(dataset)
+    sents  = list(prov.iterSentences(split='val'))
+    inputs = list(mapper.transform([sent['tokens'] for sent in sents ]))
+    preds  = numpy.vstack([ predict_v(batch_inp(batch, mapper.BEG_ID, mapper.END_ID))
+                            for batch in grouper(inputs, batch_size) ])
+    numpy.save(os.path.join(model_path, output), preds)
+    
+def cmd_eval(dataset='coco',
+             scaler_path='scaler.pkl.gz',
+             input='predict_v.npy',
+             output='eval.json'):
+    scaler = pickle.load(gzip.open(scaler_path))
+    preds  = numpy.load(input)
+    prov   = dp.getDataProvider(dataset)
+    sents  = list(prov.iterSentences(split='val'))
+    images = list(prov.iterImages(split='val'))
+    img_fs = list(scaler.transform([ image['feat'] for image in images ]))
+    correct = numpy.array([ [ sents[i]['imgid']==images[j]['imgid']
+                              for j in range(len(images)) ]
+                            for i in range(len(sents)) ])
+    r = evaluate.ranking(img_fs, preds, correct, exclude_self=False)
+    json.dump(r, open(output, 'w'))
+    
