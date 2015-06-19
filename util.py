@@ -101,20 +101,23 @@ def orthogonal(shape, scale=1.1):
     q = q.reshape(shape)
     return sharedX(scale * q[:shape[0], :shape[1]])
 
+def linear(x):
+    return x
+
 def tanh(x):
-	return T.tanh(x)
+    return T.tanh(x)
 
 def rectify(x):
-	return (x + abs(x)) / 2.0
+    return (x + abs(x)) / 2.0
 
 def clipped_rectify(x):
-	return T.clip((x + abs(x)) / 2.0, 0., 5.)
+    return T.clip((x + abs(x)) / 2.0, 0., 5.)
 
 def sigmoid(x):
     return 1./(1. + T.exp(-x))
 
 def steeper_sigmoid(x):
-	return 1./(1. + T.exp(-3.75 * x))
+    return 1./(1. + T.exp(-3.75 * x))
 
 def softmax3d(inp): 
     x = inp.reshape((inp.shape[0]*inp.shape[1],inp.shape[2]))
