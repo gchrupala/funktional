@@ -12,10 +12,10 @@ import argparse
 import gzip
 import sys
 import os
-import util
+import funktional.util
 import copy
 import time
-from layer import *
+from funktional.layer import *
 
 class EncoderDecoder(Layer):
     """A simple encoder-decoder net with shared input and output vocabulary."""
