@@ -28,8 +28,7 @@ class Identity(Layer):
 class ComposedLayer(Layer):
     
     def __init__(self, first, second):
-        self.first = first
-        self.second = second
+        autoassign(locals())
         self.params = self.first.params + self.second.params
 
     def __call__(self, inp):
@@ -38,9 +37,8 @@ class ComposedLayer(Layer):
 class Embedding(Layer):
     """Embedding (lookup table) layer."""
     def __init__(self, size_in, size_out):
-        self.size_in = size_in
-        self.size_out = size_out
-        self.E = uniform((size_in, size_out))
+        autoassign(locals())
+        self.E = uniform((self.size_in, self.size_out))
         self.params = [self.E]
 
     def __call__(self, inp):
@@ -58,7 +56,7 @@ def theano_one_hot(idx, n):
 class OneHot(Layer):
     """One-hot encoding of input."""
     def __init__(self, size_in):
-        self.size_in = size_in
+        autoassign(locals())
         self.params = []
 
     def __call__(self, inp):
@@ -68,8 +66,7 @@ class OneHot(Layer):
 class Dense(Layer):
     """Fully connected layer."""
     def __init__(self, size_in, size_out):
-        self.size_in = size_in
-        self.size_out = size_out
+        autoassign(locals())
         self.w = orthogonal((self.size_in, self.size_out))
         self.b = shared0s((self.size_out))
         self.params = [self.w, self.b]
@@ -123,7 +120,7 @@ class GRU(Layer):
 class Zeros(Layer):
     """Returns a shared variable vector of specified size initialized with zeros.""" 
     def __init__(self, size):
-        self.size  = size
+        autoassign(locals())
         self.zeros = theano.shared(numpy.asarray(numpy.zeros((1,self.size)), dtype=theano.config.floatX))
         self.params = [self.zeros]
     
@@ -133,8 +130,7 @@ class Zeros(Layer):
 class WithH0(Layer):
     """Returns a new Layer which composes 'h0' and 'layer' such that 'h0()' is the initial state of 'layer'."""
     def __init__(self, h0, layer):
-        self.h0 = h0
-        self.layer = layer
+        autoassign(locals())
         self.params = self.h0.params + self.layer.params
 
     def __call__(self, inp):
