@@ -6,7 +6,11 @@
 import theano
 import theano.tensor as T
 from util import *
+import context
 import numpy
+from theano.sandbox.rng_mrg import MRG_RandomStreams
+
+rstream = MRG_RandomStreams(seed=np.random.randint(10e6))
 
 class Layer(object):
     """Neural net layer. Maps (a number of) theano tensors to a theano tensor."""
@@ -74,6 +78,23 @@ class Dense(Layer):
     def __call__(self, inp):
         return T.dot(inp, self.w) + self.b
 
+
+class Dropout(Layer):
+    """Randomly set `prob` fraction of input units to zero during training."""
+    def __init__(self, prob):
+        autoassign(locals())
+        self.params = []
+
+    def __call__(self, inp):
+        if self.prob > 0.0:
+            keep = 1.0 - self.prob
+            if context.training:
+                return inp * rstream.binomial(inp.shape, p=keep, dtype=theano.config.floatX)
+            else:
+                return inp * keep
+        else:
+            return inp
+
 class GRU(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states.
@@ -139,7 +160,18 @@ class WithH0(Layer):
 def GRUH0(size_in, size, **kwargs):
     """A GRU layer with its own initial state."""
     return WithH0(Zeros(size), GRU(size_in, size, **kwargs))
-    
+
+class WithDropout(Layer):
+    """Composes given layer with a dropout layer."""
+    def __init__(self, layer, prob):
+        autoassign(locals())
+        self.Dropout = Dropout(prob=prob)
+        self.params = params(self.layer, self.Dropout)
+
+    def __call__(self, *args, **kwargs):
+        return self.Dropout(self.layer(*args, **kwargs))
+
+
 def last(x):
     """Returns the last time step of all sequences in x."""
     return x.dimshuffle((1,0,2))[-1]
@@ -166,17 +198,16 @@ class EncoderDecoderGRU(Layer):
     def __call__(self, inp, out_prev):
         return self.Decode(last(self.Encode(inp)), out_prev)    
 
+                 
 class StackedGRU(Layer):
     """A stack of GRUs."""
-    def __init__(self, size_in, size, depth=2, **kwargs):
-        self.size_in = size_in
-        self.size = size
-        self.depth = depth
-        self.bottom = GRU(self.size_in, self.size, **kwargs)
-        layers = [ GRUH0(self.size, self.size, **kwargs)
+    def __init__(self, size_in, size, depth=2, dropout_prob=0.0, **kwargs):
+        autoassign(locals())
+        self.bottom = WithDropout(GRU(self.size_in, self.size, **kwargs), prob=self.dropout_prob)
+        layers = [ WithDropout(GRUH0(self.size, self.size, **kwargs), prob=self.dropout_prob)
                    for _ in range(1,self.depth) ]
         self.stack = reduce(lambda z, x: z.compose(x), layers, Identity())
-        self.params = self.stack.params + self.bottom.params
+        self.params = params(self.stack, self.bottom)
 
     def __call__(self, h0, inp, repeat_h0=0):
         return self.stack(self.bottom(h0, inp, repeat_h0=repeat_h0))
@@ -184,4 +215,3 @@ class StackedGRU(Layer):
 def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
     return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
-

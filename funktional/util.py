@@ -142,25 +142,22 @@ def CosineDistance(U, V):
     W = (U_norm * V_norm).sum(axis=1)
     return (1 - W).mean()
 
-def clip_norms(gs, maxnorm):
-    def clip_norm(g, maxnorm, n):
-        return T.switch(T.ge(n, maxnorm), g*maxnorm/n, g)    
+def clip_norms(gs, max_norm):
+    def clip_norm(g, max_norm, norm):
+        return T.switch(T.ge(norm, max_norm), g*max_norm/norm, g)    
     norm = T.sqrt(sum([T.sum(g**2) for g in gs]))
-    return [clip_norm(g, maxnorm, norm) for g in gs]
+    return [clip_norm(g, max_norm, norm) for g in gs]
 
 class Adam(object):
     """Adam: a Method for Stochastic Optimization, Kingma and Ba. http://arxiv.org/abs/1412.6980."""
 
-    def __init__(self, lr=0.0002, b1=0.1, b2=0.001, e=1e-8, maxnorm=None):
-        self.lr = lr
-        self.b1 = b1
-        self.b2 = b2
-        self.e = e
+    def __init__(self, lr=0.0002, b1=0.1, b2=0.001, e=1e-8, max_norm=None):
+        autoassign(locals())
 
     def get_updates(self, params, cost):
         updates = []
-        grads = T.grad(cost, params) if maxnorm is None \
-                                     else clip_norms(T.grad(cost, params), maxnorm)
+        grads = T.grad(cost, params) if self.max_norm is None \
+                                     else clip_norms(T.grad(cost, params), max_norm)
         i = theano.shared(floatX(0.))
         i_t = i + 1.
         fix1 = 1. - self.b1**(i_t)
