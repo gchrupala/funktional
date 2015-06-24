@@ -63,7 +63,7 @@ Encdec = EncoderDecoder(size_in, size, size_out)
 output = softmax3d(Encdec(input, output_prev))
 ```
 
-See [layer.py](layer.py) for more examples of layer compositions.
+See [layer.py](funktional/layer.py) for more examples of layer compositions.
 
 The file [autoencoder.py](autoencoder.py) uses funktional to implement a
 recurrent auto-encoder, which learns to map sentences to a hidden
