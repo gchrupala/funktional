@@ -157,7 +157,7 @@ class Adam(object):
     def get_updates(self, params, cost):
         updates = []
         grads = T.grad(cost, params) if self.max_norm is None \
-                                     else clip_norms(T.grad(cost, params), max_norm)
+                                     else clip_norms(T.grad(cost, params), self.max_norm)
         i = theano.shared(floatX(0.))
         i_t = i + 1.
         fix1 = 1. - self.b1**(i_t)
