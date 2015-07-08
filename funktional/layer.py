@@ -206,7 +206,7 @@ class StackedGRU(Layer):
         self.bottom = WithDropout(GRU(self.size_in, self.size, **kwargs), prob=self.dropout_prob)
         layers = [ WithDropout(GRUH0(self.size, self.size, **kwargs), prob=self.dropout_prob)
                    for _ in range(1,self.depth) ]
-        self.stack = reduce(lambda z, x: z.compose(x), layers, Identity())
+        self.stack = reduce(lambda z, x: x.compose(z), layers, Identity())
         self.params = params(self.stack, self.bottom)
 
     def __call__(self, h0, inp, repeat_h0=0):
