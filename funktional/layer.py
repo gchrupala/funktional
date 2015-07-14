@@ -95,9 +95,10 @@ class Dropout(Layer):
         else:
             return inp
 
-class GRU(Layer):
+class GRU_gate_activations(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
-       sequence of inputs, and returns the sequence of hidden states.
+       sequence of inputs, and returns the sequence of hidden states,
+       and the sequences of gate activations.
     """
     def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid):
         autoassign(locals())
@@ -123,7 +124,7 @@ class GRU(Layer):
         r = self.gate_activation(xr_t + T.dot(h_tm1, u_r))
         h_tilda_t = self.activation(xh_t + T.dot(r * h_tm1, u_h))
         h_t = z * h_tm1 + (1 - z) * h_tilda_t
-        return h_t
+        return h_t, r, z
 
     def __call__(self, h0, seq, repeat_h0=0):
         X = seq.dimshuffle((1,0,2))
@@ -133,10 +134,25 @@ class GRU(Layer):
         x_h = T.dot(X, self.w_h) + self.b_h
         out, _ = theano.scan(self.step, 
             sequences=[x_z, x_r, x_h], 
-                             outputs_info=[H0], 
+                             outputs_info=[H0, None, None], 
             non_sequences=[self.u_z, self.u_r, self.u_h]
         )
-        return out.dimshuffle((1,0,2))
+        return (out[0].dimshuffle((1,0,2)), out[1].dimshuffle((1,0,2)), out[2].dimshuffle((1,0,2)))
+
+class GRU(Layer):
+    """Gated Recurrent Unit layer. Takes initial hidden state, and a
+       sequence of inputs, and returns the sequence of hidden states.
+    """
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid):
+        autoassign(locals())
+        self.gru = GRU_gate_activations(self.size_in, self.size, activation=self.activation,
+                                        gate_activation=self.gate_activation)
+        self.params = self.gru.params
+
+    def __call__(self, h0, seq, repeat_h0=1):
+        H, _Z, _R = self.gru(h0, seq, repeat_h0=repeat_h0)
+        return H
+        
         
 class Zeros(Layer):
     """Returns a shared variable vector of specified size initialized with zeros.""" 
