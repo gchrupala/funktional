@@ -12,7 +12,7 @@ import argparse
 import gzip
 import sys
 import os
-import funktional.util
+import funktional.util as util
 import copy
 import time
 from funktional.layer import *
