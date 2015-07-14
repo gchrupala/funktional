@@ -121,9 +121,12 @@ def steeper_sigmoid(x):
 
 def softmax3d(inp): 
     x = inp.reshape((inp.shape[0]*inp.shape[1],inp.shape[2]))
-    e_x = T.exp(x - x.max(axis=1).dimshuffle(0, 'x'))
-    result = e_x / e_x.sum(axis=1).dimshuffle(0, 'x')
+    result = softmax(x)
     return result.reshape(inp.shape)
+
+def softmax(x):
+    e_x = T.exp(x - x.max(axis=1).dimshuffle(0, 'x'))
+    return e_x / e_x.sum(axis=1).dimshuffle(0, 'x')    
 
 epsilon = 1e-7
 
