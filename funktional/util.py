@@ -157,10 +157,13 @@ class Adam(object):
     def __init__(self, lr=0.0002, b1=0.1, b2=0.001, e=1e-8, max_norm=None):
         autoassign(locals())
 
-    def get_updates(self, params, cost):
+    def get_updates(self, params, cost, disconnected_inputs='error'):
         updates = []
-        grads = T.grad(cost, params) if self.max_norm is None \
-                                     else clip_norms(T.grad(cost, params), self.max_norm)
+        grads = T.grad(cost, params, disconnected_inputs=disconnected_inputs) \
+                             if self.max_norm is None \
+                             else clip_norms(T.grad(cost, params, disconnected_inputs=disconnected_inputs),
+                                             self.max_norm)
+    
         i = theano.shared(floatX(0.))
         i_t = i + 1.
         fix1 = 1. - self.b1**(i_t)
