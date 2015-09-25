@@ -191,6 +191,9 @@ def autoassign(locs):
 def params(*layers):
     return sum([ layer.params for layer in layers ], [])
 
+def names(*layers):
+    return sum([ layer.names for layer in layers ], [])
+
 def pad(xss, padding):
     max_len = max((len(xs) for xs in xss))
     def pad_one(xs):
