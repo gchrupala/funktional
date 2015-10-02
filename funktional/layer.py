@@ -64,7 +64,9 @@ class OneHot(Layer):
         self.params = []
 
     def __call__(self, inp):
-        return theano_one_hot(inp.flatten(), self.size_in).reshape((inp.shape[0], inp.shape[1], self.size_in))
+        ndim = inp.ndim + 1
+        return theano_one_hot(inp.flatten(), self.size_in).reshape(inp.shape + (self.size_in,),
+                                                                   ndim=ndim)
         
 
 class Dense(Layer):
