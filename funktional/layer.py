@@ -76,10 +76,8 @@ class OneHot(Layer):
         self.names =  []
 
     def __call__(self, inp):
-        ndim = inp.ndim + 1
-        return theano_one_hot(inp.flatten(), self.size_in).reshape(inp.shape + (self.size_in,),
-                                                                   ndim=ndim)
-        
+        return theano_one_hot(inp.flatten(), self.size_in).reshape((inp.shape[0], inp.shape[1], self.size_in))
+                
 
 class Dense(Layer):
     """Fully connected layer."""
