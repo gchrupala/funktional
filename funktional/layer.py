@@ -241,21 +241,24 @@ class StackedGRU(Layer):
     """
     def __init__(self, size_in, size, depth=2, dropout_prob=0.0, **kwargs):
         autoassign(locals())
-        self.bottom = GRU(self.size_in, self.size, **kwargs)
-        if self.depth == 1:
-            self.top = Identity()
-            self.stack = Identity()
-        else:
-            self.top = GRUH0(self.size, self.size, **kwargs)
-            layers = [ WithDropout(GRUH0(self.size, self.size, **kwargs), prob=self.dropout_prob)
-                       for _ in range(2,self.depth) ]
-            self.stack = reduce(lambda z, x: x.compose(z), layers, WithDropout(Identity(), prob=self.dropout_prob))
-        self.params = params(self.stack, self.bottom, self.top)
-        self.names  = names(self.stack, self.bottom, self.top)
+        layers = [ GRUH0(self.size, self.size, **kwargs).compose(Dropout(prob=self.dropout_prob))
+                   for _ in range(1,self.depth) ]
+        self.bottom = GRU(self.size, self.size, **kwargs)
+        self.Dropout0 = Dropout(prob=self.dropout_prob)
+        self.stack = reduce(lambda z, x: x.compose(z), layers, Identity())
+        self.params = params(self.Dropout0, self.bottom, self.stack)
+        self.names  = names(self.Dropout0, self.bottom, self.stack)
 
     def __call__(self, h0, inp, repeat_h0=0):
-        return self.top(self.stack(self.bottom(h0, inp, repeat_h0=repeat_h0)))
+        return self.stack(self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0))
 
+    def grow(self):
+        """Add another layer on top."""
+        self.stack = GRUH0(self.size, self.size, **kwargs).compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
+        self.params = params(self.Dropout0, self.bottom, self.stack)
+        self.names  = names(self.Dropout0, self.bottom, self.stack)
+        
+            
 def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
     return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
