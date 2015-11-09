@@ -244,17 +244,18 @@ class StackedGRU(Layer):
         self.bottom = GRU(self.size_in, self.size, **kwargs)
         if self.depth == 1:
             self.top = Identity()
+            self.stack = Identity()
         else:
             self.top = GRUH0(self.size, self.size, **kwargs)
-        layers = [ WithDropout(GRUH0(self.size, self.size, **kwargs), prob=self.dropout_prob)
-                   for _ in range(2,self.depth) ]
-        self.stack = reduce(lambda z, x: x.compose(z), layers, WithDropout(Identity(), prob=self.dropout_prob))
+            layers = [ WithDropout(GRUH0(self.size, self.size, **kwargs), prob=self.dropout_prob)
+                       for _ in range(2,self.depth) ]
+            self.stack = reduce(lambda z, x: x.compose(z), layers, WithDropout(Identity(), prob=self.dropout_prob))
         self.params = params(self.stack, self.bottom, self.top)
         self.names  = names(self.stack, self.bottom, self.top)
 
     def __call__(self, h0, inp, repeat_h0=0):
         return self.top(self.stack(self.bottom(h0, inp, repeat_h0=repeat_h0)))
-        
+
 def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
     return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
