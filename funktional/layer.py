@@ -106,9 +106,9 @@ class Dropout(Layer):
         if self.prob > 0.0:
             keep = 1.0 - self.prob
             if context.training:
-                return inp * rstream.binomial(inp.shape, p=keep, dtype=theano.config.floatX)
+                return inp * rstream.binomial(inp.shape, p=keep, dtype=theano.config.floatX) / keep
             else:
-                return inp * keep
+                return inp
         else:
             return inp
 
