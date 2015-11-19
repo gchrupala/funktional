@@ -139,7 +139,7 @@ class GRU_gate_activations(Layer):
         z = self.gate_activation(xz_t + T.dot(h_tm1, u_z))
         r = self.gate_activation(xr_t + T.dot(h_tm1, u_r))
         h_tilda_t = self.activation(xh_t + T.dot(r * h_tm1, u_h))
-        h_t = z * h_tm1 + (1 - z) * h_tilda_t
+        h_t = (1 - z) * h_tm1 + z * h_tilda_t
         return h_t, r, z
 
     def __call__(self, h0, seq, repeat_h0=0):
