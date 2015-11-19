@@ -10,9 +10,6 @@ import context
 import numpy
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
-rstream = MRG_RandomStreams(seed=np.random.randint(10e6))
-
-
 def params(*layers):
     return sum([ layer.params() for layer in layers ], [])
 
@@ -98,6 +95,7 @@ class Dropout(Layer):
     """Randomly set `prob` fraction of input units to zero during training."""
     def __init__(self, prob):
         autoassign(locals())
+        self.rstream = MRG_RandomStreams(seed=numpy.random.randint(10e6))
 
     def params(self):
         return []
@@ -106,7 +104,7 @@ class Dropout(Layer):
         if self.prob > 0.0:
             keep = 1.0 - self.prob
             if context.training:
-                return inp * rstream.binomial(inp.shape, p=keep, dtype=theano.config.floatX) / keep
+                return inp * self.rstream.binomial(inp.shape, p=keep, dtype=theano.config.floatX) / keep
             else:
                 return inp
         else:
