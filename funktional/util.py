@@ -101,6 +101,10 @@ def orthogonal(shape, scale=1.1):
     q = q.reshape(shape)
     return sharedX(scale * q[:shape[0], :shape[1]])
 
+def identity(side):
+    """Initialization to identity matrix."""
+    return sharedX(numpy.identity(side))
+
 def linear(x):
     return x
 

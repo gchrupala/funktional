@@ -115,10 +115,32 @@ class GRU_gate_activations(Layer):
        sequence of inputs, and returns the sequence of hidden states,
        and the sequences of gate activations.
     """
-    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid):
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False):
         autoassign(locals())
-
         self.init = orthogonal
+        if self.identity:
+            self._init_identity()
+        else:
+            self._init()
+
+    def _init_identity(self):
+        """Initialize layer as identity function."""
+        assert self.size_in == self.size
+        large = 2.0
+        self.w_z = sharedX(numpy.identity(self.size) + large)
+        self.w_r = self.init((self.size_in, self.size))
+
+        self.u_z = sharedX(numpy.identity(self.size) + large)
+        self.u_r = self.init((self.size, self.size))
+
+        self.b_z = shared0s((self.size))
+        self.b_r = shared0s((self.size))
+
+        self.w_h = sharedX(numpy.identity(self.size))
+        self.u_h = sharedX(numpy.zeros((self.size, self.size)))
+        self.b_h = shared0s((self.size))   
+
+    def _init(self):
         self.w_z = self.init((self.size_in, self.size))
         self.w_r = self.init((self.size_in, self.size))
 
@@ -132,6 +154,7 @@ class GRU_gate_activations(Layer):
         self.u_h = self.init((self.size, self.size))
         self.b_h = shared0s((self.size))   
 
+        
     def params(self):
         return [self.w_z, self.w_r, self.w_h, self.u_z, self.u_r, self.u_h, self.b_z, self.b_r, self.b_h]
         
@@ -159,10 +182,10 @@ class GRU(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states.
     """
-    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid):
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False):
         autoassign(locals())
         self.gru = GRU_gate_activations(self.size_in, self.size, activation=self.activation,
-                                        gate_activation=self.gate_activation)
+                                        gate_activation=self.gate_activation, identity=self.identity)
 
     def params(self):
         return self.gru.params()
@@ -260,8 +283,8 @@ class StackedGRU(Layer):
         return self.stack(self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0))
 
     def grow(self):
-        """Add another layer on top."""
-        self.stack = GRUH0(self.size, self.size, **self.kwargs).compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
+        """Add another layer on top, initialized to the identity function."""
+        self.stack = GRUH0(self.size, self.size, identity=True, **self.kwargs).compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
             
 def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
