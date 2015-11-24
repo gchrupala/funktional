@@ -210,3 +210,6 @@ def shuffled(x):
     y = copy.copy(x)
     random.shuffle(y)
     return y
+
+def logit(p):
+    return np.log(p/(1-p))

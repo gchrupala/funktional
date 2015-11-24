@@ -123,14 +123,14 @@ class GRU_gate_activations(Layer):
         else:
             self._init()
 
-    def _init_identity(self):
+    def _init_identity(self, prob=0.9):
         """Initialize layer as identity function."""
         assert self.size_in == self.size
-        large = 2.0
-        self.w_z = sharedX(numpy.identity(self.size) + large)
+        lp = logit(prob)
+        self.w_z = sharedX(numpy.identity(self.size) * lp)
         self.w_r = self.init((self.size_in, self.size))
 
-        self.u_z = sharedX(numpy.identity(self.size) + large)
+        self.u_z = sharedX(numpy.identity(self.size) * lp)
         self.u_r = self.init((self.size, self.size))
 
         self.b_z = shared0s((self.size))
@@ -282,9 +282,9 @@ class StackedGRU(Layer):
     def __call__(self, h0, inp, repeat_h0=0):
         return self.stack(self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0))
 
-    def grow(self):
+    def grow(self, identity=True):
         """Add another layer on top, initialized to the identity function."""
-        self.stack = GRUH0(self.size, self.size, identity=True, **self.kwargs).compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
+        self.stack = GRUH0(self.size, self.size, identity=identity, **self.kwargs).compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
             
 def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
