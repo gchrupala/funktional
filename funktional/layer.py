@@ -110,6 +110,26 @@ class Dropout(Layer):
         else:
             return inp
 
+class Sum(Layer):
+    """Componentwise sum of inputs."""
+    
+    def __init__(self, size):
+        autoassign(locals())
+        self.id = T.alloc(0.0, 1, self.size)
+
+    def params(self):
+        return []
+
+    def step(self, x_t, x_tm1):
+        return x_tm1 + x_t
+
+    def __call__(self, seq):
+        X = seq.dimshuffle((1,0,2))
+        H0 = T.repeat(self.id, X.shape[1], axis=0)
+        out, _ = theano.scan(self.step, sequences=[X], outputs_info=[H0])
+        return out.dimshuffle((1,0,2)) # return the whole sequence of partial sums 
+                                       # to be compatible with recurrent layers
+    
 class GRU_gate_activations(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states,
