@@ -292,7 +292,7 @@ class StackedGRU(Layer):
         autoassign(locals())
         layers = [ GRUH0(self.size, self.size, **self.kwargs).compose(Dropout(prob=self.dropout_prob))
                    for _ in range(1,self.depth) ]
-        self.bottom = GRU(self.size, self.size, **self.kwargs)
+        self.bottom = GRU(self.size_in, self.size, **self.kwargs)
         self.Dropout0 = Dropout(prob=self.dropout_prob)
         self.stack = reduce(lambda z, x: x.compose(z), layers, Identity())
 
