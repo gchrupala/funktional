@@ -28,6 +28,14 @@ class Layer(object):
         """Compose itself with another layer."""
         return ComposedLayer(self, l2)
 
+    def borrow_params(self, ps):
+        """Overwrite parameters with given values."""
+        qs = self.params()
+        assert len(qs) == len(ps)
+        for (q,p) in zip(qs, ps):
+            print "Setting value of {}".format(q)
+            q.set_value(p)
+        
 class Identity(Layer):
     """Return the input unmodified."""
     def __call__(self, inp):
@@ -85,7 +93,7 @@ class Dense(Layer):
         self.b = shared0s((self.size_out))
 
     def params(self):
-       return [self.w, self.b]
+        return [self.w, self.b]
         
     def __call__(self, inp):
         return T.dot(inp, self.w) + self.b
@@ -292,7 +300,7 @@ class StackedGRU(Layer):
         autoassign(locals())
         layers = [ GRUH0(self.size, self.size, **self.kwargs).compose(Dropout(prob=self.dropout_prob))
                    for _ in range(1,self.depth) ]
-        self.bottom = GRU(self.size, self.size, **self.kwargs)
+        self.bottom = GRU(self.size_in, self.size, **self.kwargs)
         self.Dropout0 = Dropout(prob=self.dropout_prob)
         self.stack = reduce(lambda z, x: x.compose(z), layers, Identity())
 
@@ -302,10 +310,17 @@ class StackedGRU(Layer):
     def __call__(self, h0, inp, repeat_h0=0):
         return self.stack(self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0))
 
-    def grow(self, identity=True):
+    def grow_id(self, identity=True):
         """Add another layer on top, initialized to the identity function."""
         self.stack = GRUH0(self.size, self.size, identity=identity, **self.kwargs).compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
-            
+
+    def grow(self, ps):
+        """Add another layer on top, initialized to given parameter values."""
+        gruh0 = GRUH0(self.size, self.size, identity=identity, **self.kwargs)
+        gruh0.borrow_params(ps)
+        self.stack = gruh0.compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
+    
 def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
     return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
+
