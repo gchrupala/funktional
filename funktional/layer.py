@@ -219,7 +219,7 @@ class GRU(Layer):
         return self.gru.params()
     
     def __call__(self, h0, seq, repeat_h0=1):
-        H, _Z, _R = self.gru(h0, seq, repeat_h0=repeat_h0)
+        H, _, _ = self.gru(h0, seq, repeat_h0=repeat_h0)
         return H
         
         
