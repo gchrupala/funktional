@@ -52,6 +52,11 @@ class ComposedLayer(Layer):
     def __call__(self, inp):
         return self.first(self.second(inp))
 
+    def intermediate(self, inp):
+        x = self.second(inp)
+        z = self.first(x)
+        return (x,z)
+
 class Embedding(Layer):
     """Embedding (lookup table) layer."""
     def __init__(self, size_in, size_out):
@@ -246,6 +251,9 @@ class WithH0(Layer):
     def __call__(self, inp):
         return self.layer(self.h0(), inp, repeat_h0=1)
 
+    def intermediate(self, inp):
+        return self.layer.intermediate(self.h0(), inp, repeat_h0=1)
+
 def GRUH0(size_in, size, **kwargs):
     """A GRU layer with its own initial state."""
     return WithH0(Zeros(size), GRU(size_in, size, **kwargs))
@@ -310,6 +318,11 @@ class StackedGRU(Layer):
     def __call__(self, h0, inp, repeat_h0=0):
         return self.stack(self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0))
 
+    def intermediate(self, h0, inp, repeat_h0=0):
+        x = self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0)
+        ys = unnest(self.stack.intermediate(x))
+        return theano.tensor.stack(* [x] + ys[0:-1]) # FIXME deprecated interface
+
     def grow_id(self, identity=True):
         """Add another layer on top, initialized to the identity function."""
         self.stack = GRUH0(self.size, self.size, identity=identity, **self.kwargs).compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
@@ -320,6 +333,14 @@ class StackedGRU(Layer):
         gruh0.borrow_params(ps)
         self.stack = gruh0.compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
     
+def unnest(z):
+    try:
+        x,y = z
+        return [x] + unnest(y)
+    except:
+        return [z]
+    
+
 def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
     return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
