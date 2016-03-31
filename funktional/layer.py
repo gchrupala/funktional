@@ -306,11 +306,11 @@ class StackedGRU(Layer):
     """
     def __init__(self, size_in, size, depth=2, dropout_prob=0.0, **kwargs):
         autoassign(locals())
-        layers = [ GRUH0(self.size, self.size, **self.kwargs).compose(Dropout(prob=self.dropout_prob))
-                   for _ in range(1,self.depth) ]
+        self.layers = [ GRUH0(self.size, self.size, **self.kwargs).compose(Dropout(prob=self.dropout_prob))
+                        for _ in range(1,self.depth) ]
         self.bottom = GRU(self.size_in, self.size, **self.kwargs)
         self.Dropout0 = Dropout(prob=self.dropout_prob)
-        self.stack = reduce(lambda z, x: x.compose(z), layers, Identity())
+        self.stack = reduce(lambda z, x: x.compose(z), self.layers, Identity())
 
     def params(self):
         return params(self.Dropout0, self.bottom, self.stack)
@@ -319,9 +319,11 @@ class StackedGRU(Layer):
         return self.stack(self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0))
 
     def intermediate(self, h0, inp, repeat_h0=0):
-        x = self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0)
-        ys = unnest(self.stack.intermediate(x))
-        return theano.tensor.stack(* [x] + ys[0:-1]) # FIXME deprecated interface
+        zs = [ self.bottom(h0, self.Dropout0(inp), repeat_h0=repeat_h0) ]
+        for layer in self.layers:
+            z = layer(zs[-1])
+            zs.append(z)
+        return theano.tensor.stack(* zs).dimshuffle((1,2,0,3)) # FIXME deprecated interface
 
     def grow_id(self, identity=True):
         """Add another layer on top, initialized to the identity function."""
@@ -333,7 +335,10 @@ class StackedGRU(Layer):
         gruh0.borrow_params(ps)
         self.stack = gruh0.compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
     
-def unnest(z):
+def intermediate(layers, y):
+    def step(z, l):
+        return 
+        
     try:
         x,y = z
         return [x] + unnest(y)

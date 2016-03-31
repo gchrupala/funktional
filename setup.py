@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='funktional',
-      version='0.2',
+      version='0.4',
       description='A minimalistic toolkit for functionally composable neural network layers with Theano.',
       url='https://github.com/gchrupala/funktional',
       author='Grzegorz Chrupała',
