@@ -335,17 +335,6 @@ class StackedGRU(Layer):
         gruh0.borrow_params(ps)
         self.stack = gruh0.compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
     
-def intermediate(layers, y):
-    def step(z, l):
-        return 
-        
-    try:
-        x,y = z
-        return [x] + unnest(y)
-    except:
-        return [z]
-    
-
 def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
     return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
