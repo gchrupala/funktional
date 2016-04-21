@@ -40,6 +40,17 @@ class Identity(Layer):
     """Return the input unmodified."""
     def __call__(self, inp):
         return inp
+
+class Residual(Layer):
+    """Residualizes a layer."""
+    def __init__(self, layer):
+        autoassign(locals())
+
+    def __call__(self, inp):
+        return inp + self.layer(inp)
+
+    def params(self):
+        return self.layer.params()
     
 class ComposedLayer(Layer):
     
@@ -304,10 +315,11 @@ class StackedGRU(Layer):
     """A stack of GRUs.
        Dropout layers intervene between adjacent GRU layers.
     """
-    def __init__(self, size_in, size, depth=2, dropout_prob=0.0, **kwargs):
+    def __init__(self, size_in, size, depth=2, dropout_prob=0.0, residual=False, **kwargs):
         autoassign(locals())
-        self.layers = [ GRUH0(self.size, self.size, **self.kwargs).compose(Dropout(prob=self.dropout_prob))
-                        for _ in range(1,self.depth) ]
+        f = lambda x: Residual(x) if self.residual else x
+        self.layers = [ f(GRUH0(self.size, self.size, **self.kwargs)).compose(Dropout(prob=self.dropout_prob))
+                            for _ in range(1,self.depth) ]
         self.bottom = GRU(self.size_in, self.size, **self.kwargs)
         self.Dropout0 = Dropout(prob=self.dropout_prob)
         self.stack = reduce(lambda z, x: x.compose(z), self.layers, Identity())
