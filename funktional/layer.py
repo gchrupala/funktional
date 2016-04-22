@@ -159,7 +159,7 @@ class GRU_gate_activations(Layer):
        sequence of inputs, and returns the sequence of hidden states,
        and the sequences of gate activations.
     """
-    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False):
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False, backward=False):
         autoassign(locals())
         self.init = orthogonal
         if self.identity:
@@ -218,7 +218,8 @@ class GRU_gate_activations(Layer):
         out, _ = theano.scan(self.step, 
             sequences=[x_z, x_r, x_h], 
                              outputs_info=[H0, None, None], 
-            non_sequences=[self.u_z, self.u_r, self.u_h]
+                             non_sequences=[self.u_z, self.u_r, self.u_h],
+                             go_backwards=self.backward
         )
         return (out[0].dimshuffle((1,0,2)), out[1].dimshuffle((1,0,2)), out[2].dimshuffle((1,0,2)))
 
@@ -226,10 +227,11 @@ class GRU(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states.
     """
-    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False):
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False, backward=False):
         autoassign(locals())
         self.gru = GRU_gate_activations(self.size_in, self.size, activation=self.activation,
-                                        gate_activation=self.gate_activation, identity=self.identity)
+                                        gate_activation=self.gate_activation,
+                                        identity=self.identity, backward=self.backward)
 
     def params(self):
         return self.gru.params()
@@ -237,7 +239,34 @@ class GRU(Layer):
     def __call__(self, h0, seq, repeat_h0=1):
         H, _, _ = self.gru(h0, seq, repeat_h0=repeat_h0)
         return H
-        
+
+class BidiGRU(Layer):
+    """Bidirectional Gated Recurrent Unit layer. Takes initial hidden state, and a
+       sequence of inputs, and returns the sequence of hidden states.
+    """
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False):
+        autoassign(locals())
+        self.gru_f = GRU_gate_activations(self.size_in, self.size, activation=self.activation,
+                                          gate_activation=self.gate_activation,
+                                          identity=self.identity, backward=False)
+        self.gru_b = GRU_gate_activations(self.size_in, self.size, activation=self.activation,
+                                          gate_activation=self.gate_activation,
+                                          identity=self.identity, backward=True)
+
+
+    def params(self):
+        return params(self.gru_f, self.gru_b)
+    
+    def __call__(self, h0, seq, repeat_h0=1):
+        H_f, _, _ = self.gru_f(h0, seq, repeat_h0=repeat_h0)
+        H_b, _, _ = self.gru_b(h0, seq, repeat_h0=repeat_h0)
+        return H_f + H_b
+
+    def bidi(self, h0, seq, repeat_h0=1):
+        H_f, _, _ = self.gru_f(h0, seq, repeat_h0=repeat_h0)
+        H_b, _, _ = self.gru_b(h0, seq, repeat_h0=repeat_h0)
+        return (H_f, H_b)
+
         
 class Zeros(Layer):
     """Returns a shared variable vector of specified size initialized with zeros.""" 
@@ -262,12 +291,19 @@ class WithH0(Layer):
     def __call__(self, inp):
         return self.layer(self.h0(), inp, repeat_h0=1)
 
+    def bidi(self, inp):
+        return self.layer.bidi(self.h0(), inp, repeat_h0=1)
+
     def intermediate(self, inp):
         return self.layer.intermediate(self.h0(), inp, repeat_h0=1)
 
 def GRUH0(size_in, size, **kwargs):
     """A GRU layer with its own initial state."""
     return WithH0(Zeros(size), GRU(size_in, size, **kwargs))
+
+def BidiGRUH0(size_in, size, **kwargs):
+    """A BidiGRU layer with its own initial state."""
+    return WithH0(Zeros(size), BidiGRU(size_in, size, **kwargs))
 
 class WithDropout(Layer):
     """Composes given layer with a dropout layer."""
@@ -285,7 +321,11 @@ class WithDropout(Layer):
 def last(x):
     """Returns the last time step of all sequences in x."""
     return x.dimshuffle((1,0,2))[-1]
-    
+
+def first(x):
+    """Returns the first time step of all sequences in x."""
+    return x.dimshuffle((1,0,2))[0]
+
 class EncoderDecoderGRU(Layer):
     """A pair of GRUs: the first one encodes the input sequence into a
        state, the second one decodes the state into a sequence of states.
