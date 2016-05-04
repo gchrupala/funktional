@@ -117,6 +117,12 @@ def rectify(x):
 def clipped_rectify(x):
     return T.clip((x + abs(x)) / 2.0, 0., 5.)
 
+def elu(x):
+    return T.switch(x > 0.0, x, T.exp(x)-1.0)
+
+def clipped_elu(x):
+    return T.clip(T.switch(x > 0.0, x, T.exp(x)-1.0), -1.0, 5.0)
+    
 def sigmoid(x):
     return 1./(1. + T.exp(-x))
 
@@ -161,7 +167,7 @@ class Adam(object):
     def __init__(self, lr=0.0002, b1=0.1, b2=0.001, e=1e-8, max_norm=None):
         autoassign(locals())
 
-    def get_updates(self, params, cost, disconnected_inputs='error'):
+    def get_updates(self, params, cost, disconnected_inputs='raise'):
         updates = []
         grads = T.grad(cost, params, disconnected_inputs=disconnected_inputs) \
                              if self.max_norm is None \
