@@ -391,3 +391,40 @@ def StackedGRUH0(size_in, size, depth, **kwargs):
     """A stacked GRU layer with its own initial state."""
     return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
 
+class Convolution1D(Layer):
+    """A one-dimensional convolutional layer.
+    """
+    def __init__(self, size_in, length, size, stride=1, activation=linear):
+        autoassign(locals())
+        self.W_shape = (self.size, self.size_in, self.length, 1)
+        self.W = glorot_uniform(self.W_shape)
+        
+    def __call__(self, seq):
+        seq = expand_dims(seq, -1).dimshuffle((0,2,1,3))
+        result = T.nnet.conv2d(seq, self.W, border_mode='full', subsample=(self.stride, 1))
+        result = squeeze(result, 3).dimshuffle((0,2,1))
+        return self.activation(result)
+
+# Functions copied from Keras:
+# https://github.com/fchollet/keras/blob/master/keras/backend/theano_backend.py
+
+def expand_dims(x, dim=-1):
+    '''Add a 1-sized dimension at index "dim".
+    '''
+    pattern = [i for i in range(x.type.ndim)]
+    if dim < 0:
+        if x.type.ndim == 0:
+            dim = 0
+        else:
+            dim = dim % x.type.ndim + 1
+    pattern.insert(dim, 'x')
+    return x.dimshuffle(pattern)
+
+def squeeze(x, axis):
+    '''Remove a 1-dimension from the tensor at index "axis".
+    '''
+    broadcastable = x.broadcastable[:axis] + x.broadcastable[axis+1:]
+    x = T.patternbroadcast(x, [i == axis for i in range(x.type.ndim)])
+    x = T.squeeze(x)
+    x = T.patternbroadcast(x, broadcastable)
+    return x
