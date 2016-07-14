@@ -19,10 +19,10 @@ class Layer(object):
         pass
 
     def __call__(self, *inp):
-         raise NotImplementedError
+        raise NotImplementedError
 
     def params(self):
-        return []
+        raise NotImplementedError
     
     def compose(self, l2):
         """Compose itself with another layer."""
@@ -41,6 +41,9 @@ class Identity(Layer):
     def __call__(self, inp):
         return inp
 
+    def params(self):
+        return []
+    
 class Residual(Layer):
     """Residualizes a layer."""
     def __init__(self, layer):
@@ -401,9 +404,14 @@ class Convolution1D(Layer):
         
     def __call__(self, seq):
         seq = expand_dims(seq, -1).dimshuffle((0,2,1,3))
-        result = T.nnet.conv2d(seq, self.W, border_mode='full', subsample=(self.stride, 1))
+        #result = T.nnet.conv2d(seq, self.W, border_mode='full', subsample=(self.stride, 1))
+        # T.nnet.conv2d crashes when using non-unit stride
+        result = theano.sandbox.cuda.dnn.dnn_conv(seq, self.W, border_mode='full', subsample=(self.stride, 1))
         result = squeeze(result, 3).dimshuffle((0,2,1))
         return self.activation(result)
+    
+    def params(self):
+        return [self.W]
 
 # Functions copied from Keras:
 # https://github.com/fchollet/keras/blob/master/keras/backend/theano_backend.py
