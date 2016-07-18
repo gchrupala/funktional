@@ -436,3 +436,23 @@ def squeeze(x, axis):
     x = T.squeeze(x)
     x = T.patternbroadcast(x, broadcastable)
     return x
+
+
+def softmax_time(x):
+    """Input has shape Batch x Time x 1. Return softmax over dimension T."""
+    return T.nnet.softmax(x.reshape((x.shape[0]*x.shape[2], x.shape[1]))).reshape(x.shape)
+                          
+class Attention(Layer):
+    """Parameterized weighted average of a sequence of states."""
+    def __init__(self, size_in, size=512, activation=tanh):
+        autoassign(locals())
+        self.Regress1 = Dense(size_in=self.size_in, size_out=self.size)
+        self.Regress2 = Dense(size_in=self.size, size_out=1)
+        
+    def params(self):
+        return params(self.Regress1, self.Regress2)
+    
+    def __call__(self, h):
+        alpha = softmax_time(self.Regress2(self.activation(self.Regress1(h))))
+        return T.sum(alpha.repeat(self.size_in, axis=2) * h, axis=1)
+        
