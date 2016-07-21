@@ -13,6 +13,9 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams
 def params(*layers):
     return sum([ layer.params() for layer in layers ], [])
 
+def param_count(ps):
+    return sum(reduce(lambda x, z: x*z, p.get_value().shape) for p in ps)
+
 class Layer(object):
     """Neural net layer. Maps (a number of) theano tensors to a theano tensor."""
     def __init__(self):
