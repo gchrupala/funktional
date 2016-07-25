@@ -177,6 +177,11 @@ def CosineDistance(U, V):
     W = (U_norm * V_norm).sum(axis=1)
     return (1 - W).mean()
 
+def cosine_matrix(U, V):
+    U_norm = U / U.norm(2,  axis=1).reshape((U.shape[0], 1))
+    V_norm = V / V.norm(2, axis=1).reshape((V.shape[0], 1))
+    return T.dot(U_norm, V_norm.T)
+
 def clip_norms(gs, max_norm):
     def clip_norm(g, max_norm, norm):
         return T.switch(T.ge(norm, max_norm), g*max_norm/norm, g)    
@@ -241,3 +246,11 @@ def shuffled(x):
 
 def logit(p):
     return np.log(p/(1-p))
+
+def l2norm(X):
+    """
+    Divide by L2 norm, row-wise
+    """
+    norm = T.sqrt(T.pow(X, 2).sum(1))
+    X /= norm[:, None]
+    return X
