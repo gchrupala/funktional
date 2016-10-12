@@ -3,6 +3,16 @@
 A minimalistic toolkit for functionally composable neural network
 layers with Theano.
 
+
+Installation
+------------
+
+If you'll be making changes to the code it's best to install in the development mode, so all the changes are used by the Python interpreter. From the directory of the repo run the following command:
+
+```
+> python setup.py develop --user
+```
+
 Rationale
 ---------
 
