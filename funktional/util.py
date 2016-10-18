@@ -7,6 +7,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 import itertools
+from theano.tensor.extra_ops import fill_diagonal
 
 class IdTable(object):
     """Map hashable objects to ints and vice versa."""
@@ -53,6 +54,8 @@ class IdMapper(object):
             for word in set(sent):
                 self.freq[word] = self.freq.get(word, 0) + 1
 
+    #FIXME .fit(); .transform() should have the same effect as .fit_transform()
+
     def fit_transform(self, sents):
         """Map each word in sents to a unique int, adding new words."""
         sents = list(sents)
@@ -97,6 +100,12 @@ def glorot_uniform(shape):
     s = np.sqrt(6. / (fan_in + fan_out))
     return uniform(shape, s)
 
+def xavier(shape):
+    nin, nout = shape
+    r = np.sqrt(6.) / np.sqrt(nin + nout)
+    W = np.random.rand(nin, nout) * 2 * r - r
+    return sharedX(W)
+
 def orthogonal(shape, scale=1.1):
     """ benanne lasagne ortho init (faster than qr approach)"""
     flat_shape = (shape[0], np.prod(shape[1:]))
@@ -108,7 +117,7 @@ def orthogonal(shape, scale=1.1):
 
 def identity(side):
     """Initialization to identity matrix."""
-    return sharedX(numpy.identity(side))
+    return sharedX(np.identity(side))
 
 # https://github.com/fchollet/keras/blob/master/keras/initializations.py
 def get_fans(shape):
@@ -177,6 +186,21 @@ def CosineDistance(U, V):
     W = (U_norm * V_norm).sum(axis=1)
     return (1 - W).mean()
 
+def contrastive(i, s, margin=0.2): 
+        # i: (fixed) image embedding, 
+        # s: sentence embedding
+        errors = - cosine_matrix(i, s)
+        diagonal = errors.diagonal()
+        # compare every diagonal score to scores in its column (all contrastive images for each sentence)
+        cost_s = T.maximum(0, margin - errors + diagonal)  
+        # all contrastive sentences for each image
+        cost_i = T.maximum(0, margin - errors + diagonal.reshape((-1, 1)))  
+        cost_tot = cost_s + cost_i
+        # clear diagonals
+        cost_tot = fill_diagonal(cost_tot, 0)
+
+        return cost_tot.mean()
+    
 def cosine_matrix(U, V):
     U_norm = U / U.norm(2,  axis=1).reshape((U.shape[0], 1))
     V_norm = V / V.norm(2, axis=1).reshape((V.shape[0], 1))

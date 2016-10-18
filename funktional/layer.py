@@ -109,9 +109,9 @@ class OneHot(Layer):
 
 class Dense(Layer):
     """Fully connected layer."""
-    def __init__(self, size_in, size_out):
+    def __init__(self, size_in, size_out, init=orthogonal):
         autoassign(locals())
-        self.w = orthogonal((self.size_in, self.size_out))
+        self.w = self.init((self.size_in, self.size_out))
         self.b = shared0s((self.size_out))
 
     def params(self):
@@ -165,9 +165,10 @@ class GRU_gate_activations(Layer):
        sequence of inputs, and returns the sequence of hidden states,
        and the sequences of gate activations.
     """
-    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False, backward=False):
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid,
+                 init_in=orthogonal, init_recur=orthogonal,
+                 identity=False, backward=False):
         autoassign(locals())
-        self.init = orthogonal
         if self.identity:
             self._init_identity()
         else:
@@ -178,10 +179,10 @@ class GRU_gate_activations(Layer):
         assert self.size_in == self.size
         lp = logit(prob)
         self.w_z = sharedX(numpy.identity(self.size) * lp)
-        self.w_r = self.init((self.size_in, self.size))
+        self.w_r = self.init_in((self.size_in, self.size))
 
         self.u_z = sharedX(numpy.identity(self.size) * lp)
-        self.u_r = self.init((self.size, self.size))
+        self.u_r = self.init_recur((self.size, self.size))
 
         self.b_z = shared0s((self.size))
         self.b_r = shared0s((self.size))
@@ -191,17 +192,17 @@ class GRU_gate_activations(Layer):
         self.b_h = shared0s((self.size))   
 
     def _init(self):
-        self.w_z = self.init((self.size_in, self.size))
-        self.w_r = self.init((self.size_in, self.size))
+        self.w_z = self.init_in((self.size_in, self.size))
+        self.w_r = self.init_in((self.size_in, self.size))
 
-        self.u_z = self.init((self.size, self.size))
-        self.u_r = self.init((self.size, self.size))
+        self.u_z = self.init_recur((self.size, self.size))
+        self.u_r = self.init_recur((self.size, self.size))
 
         self.b_z = shared0s((self.size))
         self.b_r = shared0s((self.size))
 
-        self.w_h = self.init((self.size_in, self.size)) 
-        self.u_h = self.init((self.size, self.size))
+        self.w_h = self.init_in((self.size_in, self.size)) 
+        self.u_h = self.init_recur((self.size, self.size))
         self.b_h = shared0s((self.size))   
 
         
@@ -233,11 +234,9 @@ class GRU(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states.
     """
-    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False, backward=False):
+    def __init__(self, size_in, size, **kwargs):
         autoassign(locals())
-        self.gru = GRU_gate_activations(self.size_in, self.size, activation=self.activation,
-                                        gate_activation=self.gate_activation,
-                                        identity=self.identity, backward=self.backward)
+        self.gru = GRU_gate_activations(self.size_in, self.size, **kwargs)
 
     def params(self):
         return self.gru.params()
@@ -250,14 +249,14 @@ class BidiGRU(Layer):
     """Bidirectional Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states.
     """
-    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False):
+    def __init__(self, size_in, size, activation=tanh, gate_activation=steeper_sigmoid, identity=False, **kwargs):
         autoassign(locals())
         self.gru_f = GRU_gate_activations(self.size_in, self.size, activation=self.activation,
                                           gate_activation=self.gate_activation,
-                                          identity=self.identity, backward=False)
+                                          identity=self.identity, backward=False, **kwargs)
         self.gru_b = GRU_gate_activations(self.size_in, self.size, activation=self.activation,
                                           gate_activation=self.gate_activation,
-                                          identity=self.identity, backward=True)
+                                          identity=self.identity, backward=True, **kwargs)
 
 
     def params(self):
@@ -286,6 +285,18 @@ class Zeros(Layer):
     def __call__(self):
         return self.zeros
 
+class FixedZeros(Layer):
+    """Returns a vector of specified size filled with zeros."""
+    def __init__(self, size):
+        autoassign(locals())
+        self.zeros = T.zeros((1, self.size))
+
+    def params(self):
+        return []
+    
+    def __call__(self):
+        return self.zeros
+
 class WithH0(Layer):
     """Returns a new Layer which composes 'h0' and 'layer' such that 'h0()' is the initial state of 'layer'."""
     def __init__(self, h0, layer):
@@ -303,9 +314,12 @@ class WithH0(Layer):
     def intermediate(self, inp):
         return self.layer.intermediate(self.h0(), inp, repeat_h0=1)
 
-def GRUH0(size_in, size, **kwargs):
+def GRUH0(size_in, size, fixed=False, **kwargs):
     """A GRU layer with its own initial state."""
-    return WithH0(Zeros(size), GRU(size_in, size, **kwargs))
+    if fixed:
+        return WithH0(FixedZeros(size), GRU(size_in, size, **kwargs))
+    else:
+        return WithH0(Zeros(size), GRU(size_in, size, **kwargs))
 
 def BidiGRUH0(size_in, size, **kwargs):
     """A BidiGRU layer with its own initial state."""
@@ -361,10 +375,10 @@ class StackedGRU(Layer):
     """A stack of GRUs.
        Dropout layers intervene between adjacent GRU layers.
     """
-    def __init__(self, size_in, size, depth=2, dropout_prob=0.0, residual=False, **kwargs):
+    def __init__(self, size_in, size, depth=2, dropout_prob=0.0, residual=False, fixed=False, **kwargs):
         autoassign(locals())
         f = lambda x: Residual(x) if self.residual else x
-        self.layers = [ f(GRUH0(self.size, self.size, **self.kwargs)).compose(Dropout(prob=self.dropout_prob))
+        self.layers = [ f(GRUH0(self.size, self.size, fixed=self.fixed, **self.kwargs)).compose(Dropout(prob=self.dropout_prob))
                             for _ in range(1,self.depth) ]
         self.bottom = GRU(self.size_in, self.size, **self.kwargs)
         self.Dropout0 = Dropout(prob=self.dropout_prob)
@@ -393,9 +407,12 @@ class StackedGRU(Layer):
         gruh0.borrow_params(ps)
         self.stack = gruh0.compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
     
-def StackedGRUH0(size_in, size, depth, **kwargs):
+def StackedGRUH0(size_in, size, depth, fixed=False, **kwargs):
     """A stacked GRU layer with its own initial state."""
-    return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
+    if fixed:
+        return WithH0(FixedZeros(size), StackedGRU(size_in, size, depth, fixed=fixed, **kwargs))
+    else:
+        return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
 
 class Convolution1D(Layer):
     """A one-dimensional convolutional layer.
