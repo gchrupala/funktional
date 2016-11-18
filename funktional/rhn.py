@@ -2,38 +2,21 @@
 # https://github.com/julian121266/RecurrentHighwayNetworks/blob/master/theano_rhn.py
 # by The Swiss AI lab IDSIA.
 import numpy as np
+import theano
 import theano.tensor as tt
+from theano.ifelse import ifelse
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
+import numbers
 import context
-from funktional.layer import Layer
+from funktional.layer import Layer, WithH0, FixedZeros, Zeros, Identity, params
+from funktional.util import autoassign
 
-# class Linear(Layer):
-#     def __init__(self, in_size, out_size, bias, bias_init=None, init_scale=0.04):
-#         autoassign(locals())
-#         assert bias == (bias_init is not None)
-#         self.w = self.make_param((in_size, out_size), 'uniform')
-#         self.b = self.make_param((out_size,), bias_init)
-    
-#     def __call__(self, x):
-#         y = tt.dot(x, self.w)
-#         if self.bias:
-#             y += self.b
-#         return y
+floatX = theano.config.floatX
 
-#     def params(self):
-#         return [self.w, self.b]
-    
-#     def make_param(self, shape, init_scheme):
-#         """Create Theano shared variables, which are used as trainable model parameters."""
-#         if isinstance(init_scheme, numbers.Number):
-#             init_value = np.full(shape, init_scheme, floatX)
-#         elif init_scheme == 'uniform':
-#             init_value = np.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX)
-#         else:
-#             raise AssertionError('unsupported init_scheme')
-#         p = theano.shared(init_value)
-#         return p
+def cast_floatX(n):
+  return np.asarray(n, dtype=floatX)
 
-    
+   
 class RHN(Layer):
     """Recurrent Highway Network. Based on
     https://arxiv.org/abs/1607.03474 and
@@ -41,14 +24,18 @@ class RHN(Layer):
 
     """
     def __init__(self, size_in, size, recur_depth=1, drop_i=0.75 , drop_s=0.25,
-                 init_T_bias=-2.0, init_H_bias='uniform', tied_noise=True):
+                 init_T_bias=-2.0, init_H_bias='uniform', tied_noise=True, init_scale=0.04, seed=29): # FIXME seed
         autoassign(locals())
-        self._theano_rng = RandomStreams(config.seed // 2 + 321)
-        self._np_rng = np.random.RandomState(config.seed // 2 + 123)
+        self._theano_rng = RandomStreams(self.seed // 2 + 321)
+        self._np_rng = np.random.RandomState(self.seed // 2 + 123)
+        # self._is_training = tt.iscalar('is_training')
         self._params = []
 
     def apply_dropout(self, x, noise):
-        return ifelse(context.training, noise * x, x)
+        if context.training:
+            return noise * x
+        else:
+            return x
 
     def get_dropout_noise(self, shape, dropout_p):
         keep_p = 1 - dropout_p
@@ -63,7 +50,7 @@ class RHN(Layer):
         if isinstance(init_scheme, numbers.Number):
             init_value = np.full(shape, init_scheme, floatX)
         elif init_scheme == 'uniform':
-            init_value = self._np_rng.uniform(low=-self._init_scale, high=self._init_scale, size=shape).astype(floatX)
+            init_value = self._np_rng.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX)
         else:
             raise AssertionError('unsupported init_scheme')
         p = theano.shared(init_value)
@@ -80,22 +67,23 @@ class RHN(Layer):
         return y
    
     def step(self, i_for_H_t, i_for_T_t, h_tm1, noise_s):
-        tanh, sigm = T.tanh, T.nnet.sigmoid
+        tanh, sigm = tt.tanh, tt.nnet.sigmoid
         noise_s_for_H = noise_s if self.tied_noise else noise_s[0]
         noise_s_for_T = noise_s if self.tied_noise else noise_s[1]
-        
+
+        hidden_size = self.size
         s_lm1 = h_tm1
-        for l in range(depth):
+        for l in range(self.recur_depth):
             s_lm1_for_H = self.apply_dropout(s_lm1, noise_s_for_H)
             s_lm1_for_T = self.apply_dropout(s_lm1, noise_s_for_T)
             if l == 0:
                 # On the first micro-timestep of each timestep we already have bias
                 # terms summed into i_for_H_t and into i_for_T_t.
-                H = tanh(i_for_H_t + self.linear(s_lm1_for_H, in_size=size, out_size=hidden_size, bias=False))
+                H = tanh(i_for_H_t + self.linear(s_lm1_for_H, in_size=hidden_size, out_size=hidden_size, bias=False))
                 T = sigm(i_for_T_t + self.linear(s_lm1_for_T, in_size=hidden_size, out_size=hidden_size, bias=False))
             else:
-                H = tanh(self.linear(s_lm1_for_H, in_size=hidden_size, out_size=hidden_size, bias=True, bias_init=init_H_bias))
-                T = sigm(self.linear(s_lm1_for_T, in_size=hidden_size, out_size=hidden_size, bias=True, bias_init=init_T_bias))
+                H = tanh(self.linear(s_lm1_for_H, in_size=hidden_size, out_size=hidden_size, bias=True, bias_init=self.init_H_bias))
+                T = sigm(self.linear(s_lm1_for_T, in_size=hidden_size, out_size=hidden_size, bias=True, bias_init=self.init_T_bias))
             s_l = (H - s_lm1) * T + s_lm1
             s_lm1 = s_l
 
@@ -103,11 +91,70 @@ class RHN(Layer):
         return y_t
 
     def __call__(self, h0, seq, repeat_h0=1):
-        X = seq.dimshuffle((1,0,2))
-        H0 = T.repeat(h0, X.shape[1], axis=0) if repeat_h0 else h0
+        inputs = seq.dimshuffle((1,0,2))
+        (_seq_size, batch_size, _) = inputs.shape
+        hidden_size = self.size
+        # We first compute the linear transformation of the inputs over all timesteps.
+        # This is done outside of scan() in order to speed up computation.
+        # The result is then fed into scan()'s step function, one timestep at a time.
+        noise_i_for_H = self.get_dropout_noise((batch_size, self.size_in), self.drop_i)
+        noise_i_for_T = self.get_dropout_noise((batch_size, self.size_in), self.drop_i) if not self.tied_noise else noise_i_for_H
+
+        i_for_H = self.apply_dropout(inputs, noise_i_for_H)
+        i_for_T = self.apply_dropout(inputs, noise_i_for_T)
+
+        i_for_H = self.linear(i_for_H, in_size=self.size_in, out_size=hidden_size, bias=True, bias_init=self.init_H_bias)
+        i_for_T = self.linear(i_for_T, in_size=self.size_in, out_size=hidden_size, bias=True, bias_init=self.init_T_bias)
+
+        # Dropout noise for recurrent hidden state.
+        noise_s = self.get_dropout_noise((batch_size, hidden_size), self.drop_s)
+        if not self.tied_noise:
+          noise_s = tt.stack(noise_s, self.get_dropout_noise((batch_size, hidden_size), self.drop_s))
+
+        H0 = tt.repeat(h0, inputs.shape[1], axis=0) if repeat_h0 else h0
         out, _ = theano.scan(self.step,
                              sequences=[i_for_H, i_for_T],
                              outputs_info=[H0],
                              non_sequences = [noise_s])
         return out.dimshuffle((1, 0, 2))
+
+
+def RHN0(size_in, size, fixed=False, **kwargs):
+    """A GRU layer with its own initial state."""
+    if fixed:
+        return WithH0(FixedZeros(size), RHN(size_in, size, **kwargs))
+    else:
+        return WithH0(Zeros(size), RHN(size_in, size, **kwargs))
+
+
+class StackedRHN(Layer):
+    """A stack of RHNs.
+    """
+    def __init__(self, size_in, size, depth=2, residual=False, fixed=False, **kwargs):
+#    def __init__(self, size_in, size, depth=2, dropout_prob=0.0, residual=False, fixed=False, **kwargs):
+        autoassign(locals())
+        f = lambda x: Residual(x) if self.residual else x
+        self.layers = [ f(RHN0(self.size, self.size, fixed=self.fixed, **self.kwargs))  for _ in range(1,self.depth) ]
+        self.bottom = RHN(self.size_in, self.size, **self.kwargs)
+        self.stack = reduce(lambda z, x: x.compose(z), self.layers, Identity())
+
+    def params(self):
+        return params(self.bottom, self.stack)
+
+    def __call__(self, h0, inp, repeat_h0=0):
+        return self.stack(self.bottom(h0, inp, repeat_h0=repeat_h0))
+
+    def intermediate(self, h0, inp, repeat_h0=0):
+        zs = [ self.bottom(h0, inp, repeat_h0=repeat_h0) ]
+        for layer in self.layers:
+            z = layer(zs[-1])
+            zs.append(z)
+        return theano.tensor.stack(* zs).dimshuffle((1,2,0,3)) # FIXME deprecated interface
+
+def StackedRHN0(size_in, size, depth, fixed=False, **kwargs):
+    """A stacked RHN layer with its own initial state."""
+    if fixed:
+        return WithH0(FixedZeros(size), StackedRHN(size_in, size, depth, fixed=fixed, **kwargs))
+    else:
+        return WithH0(Zeros(size), StackedRHN(size_in, size, depth, **kwargs))
 
