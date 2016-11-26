@@ -16,6 +16,39 @@ floatX = theano.config.floatX
 def cast_floatX(n):
   return np.asarray(n, dtype=floatX)
 
+class Linear(Layer):
+
+    def __init__(self, in_size, out_size, bias_init=None, init_scale=0.04):
+        autoassign(locals())
+        self.w = self.make_param((self.in_size, self.out_size), 'uniform')
+        if bias_init is not None:
+            self.b = self.make_param((self.out_size,), self.bias_init)
+
+    def make_param(self, shape, init_scheme):
+        """Create Theano shared variables, which are used as trainable model parameters."""
+        if isinstance(init_scheme, numbers.Number):
+            init_value = np.full(shape, init_scheme, floatX)
+        elif init_scheme == 'uniform':
+            #init_value = self._np_rng.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX) # FIXME 
+            init_value = np.random.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX) 
+
+        else:
+            raise AssertionError('unsupported init_scheme')
+        p = theano.shared(init_value)
+        return p
+
+
+    def params(self):
+        if self.bias_init is not None:
+            return [self.w, self.b]
+        else:
+            return [self.w]
+                
+    def __call__(self, x):
+        if self.bias_init is not None:
+            return tt.dot(x, self.w) + self.b
+        else:
+            return tt.dot(x, self.w) 
    
 class RHN(Layer):
     """Recurrent Highway Network. Based on
@@ -29,7 +62,19 @@ class RHN(Layer):
         self._theano_rng = RandomStreams(self.seed // 2 + 321)
         self._np_rng = np.random.RandomState(self.seed // 2 + 123)
         # self._is_training = tt.iscalar('is_training')
-        self._params = []
+        hidden_size = self.size
+        self.LinearH = Linear(in_size=self.size_in, out_size=hidden_size, bias_init=self.init_H_bias)
+        self.LinearT = Linear(in_size=self.size_in, out_size=hidden_size, bias_init=self.init_T_bias)
+        self.recurH = []
+        self.recurT = []
+        for l in range(self.recur_depth):
+            if l == 0:
+                self.recurH.append(Linear(in_size=hidden_size, out_size=hidden_size))
+                self.recurT.append(Linear(in_size=hidden_size, out_size=hidden_size))
+            else:
+                self.recurH.append(Linear(in_size=hidden_size, out_size=hidden_size, bias_init=self.init_H_bias))
+                self.recurT.append(Linear(in_size=hidden_size, out_size=hidden_size, bias_init=self.init_T_bias))
+        
 
     def apply_dropout(self, x, noise):
         if context.training:
@@ -43,9 +88,9 @@ class RHN(Layer):
         return noise
     
     def params(self):
-        return self._params
+        return params(*[self.LinearH, self.LinearT] + self.recurH + self.recurT)
 
-    def make_param(self, shape, init_scheme):
+    def XXXmake_param(self, shape, init_scheme):
         """Create Theano shared variables, which are used as trainable model parameters."""
         if isinstance(init_scheme, numbers.Number):
             init_value = np.full(shape, init_scheme, floatX)
@@ -57,7 +102,17 @@ class RHN(Layer):
         self._params.append(p)
         return p
 
-    def linear(self, x, in_size, out_size, bias, bias_init=None):
+        
+    def XXXapply_linear(self, p, x, bias, bias_init=None):
+        assert bias == (bias_init is not None)
+        w = p['w']
+        y = tt.dot(x, w)
+        if bias:
+            b = d['b']
+            y += b
+        return y
+        
+    def XXXlinear(self, x, in_size, out_size, bias, bias_init=None):
         assert bias == (bias_init is not None)
         w = self.make_param((in_size, out_size), 'uniform')
         y = tt.dot(x, w)
@@ -79,11 +134,11 @@ class RHN(Layer):
             if l == 0:
                 # On the first micro-timestep of each timestep we already have bias
                 # terms summed into i_for_H_t and into i_for_T_t.
-                H = tanh(i_for_H_t + self.linear(s_lm1_for_H, in_size=hidden_size, out_size=hidden_size, bias=False))
-                T = sigm(i_for_T_t + self.linear(s_lm1_for_T, in_size=hidden_size, out_size=hidden_size, bias=False))
+                H = tanh(i_for_H_t + self.recurH[l](s_lm1_for_H))
+                T = sigm(i_for_T_t + self.recurT[l](s_lm1_for_T))
             else:
-                H = tanh(self.linear(s_lm1_for_H, in_size=hidden_size, out_size=hidden_size, bias=True, bias_init=self.init_H_bias))
-                T = sigm(self.linear(s_lm1_for_T, in_size=hidden_size, out_size=hidden_size, bias=True, bias_init=self.init_T_bias))
+                H = tanh(self.recurH[l](s_lm1_for_H))
+                T = sigm(self.recurT[l](s_lm1_for_T))
             s_l = (H - s_lm1) * T + s_lm1
             s_lm1 = s_l
 
@@ -103,8 +158,8 @@ class RHN(Layer):
         i_for_H = self.apply_dropout(inputs, noise_i_for_H)
         i_for_T = self.apply_dropout(inputs, noise_i_for_T)
 
-        i_for_H = self.linear(i_for_H, in_size=self.size_in, out_size=hidden_size, bias=True, bias_init=self.init_H_bias)
-        i_for_T = self.linear(i_for_T, in_size=self.size_in, out_size=hidden_size, bias=True, bias_init=self.init_T_bias)
+        i_for_H = self.LinearH(i_for_H)
+        i_for_T = self.LinearT(i_for_T)
 
         # Dropout noise for recurrent hidden state.
         noise_s = self.get_dropout_noise((batch_size, hidden_size), self.drop_s)
