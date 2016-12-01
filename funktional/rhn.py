@@ -8,7 +8,7 @@ from theano.ifelse import ifelse
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import numbers
 import context
-from funktional.layer import Layer, WithH0, FixedZeros, Zeros, Identity, params
+from funktional.layer import Layer, WithH0, FixedZeros, Zeros, Identity, Residual, params
 from funktional.util import autoassign
 
 floatX = theano.config.floatX
