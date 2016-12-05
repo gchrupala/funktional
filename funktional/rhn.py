@@ -57,10 +57,10 @@ class RHN(Layer):
 
     """
     def __init__(self, size_in, size, recur_depth=1, drop_i=0.75 , drop_s=0.25,
-                 init_T_bias=-2.0, init_H_bias='uniform', tied_noise=True, init_scale=0.04, seed=29): # FIXME seed
+                 init_T_bias=-2.0, init_H_bias='uniform', tied_noise=True, init_scale=0.04, seed=1): 
         autoassign(locals())
         self._theano_rng = RandomStreams(self.seed // 2 + 321)
-        self._np_rng = np.random.RandomState(self.seed // 2 + 123)
+        #self._np_rng = np.random.RandomState(self.seed // 2 + 123)
         # self._is_training = tt.iscalar('is_training')
         hidden_size = self.size
         self.LinearH = Linear(in_size=self.size_in, out_size=hidden_size, bias_init=self.init_H_bias)
@@ -95,7 +95,7 @@ class RHN(Layer):
         if isinstance(init_scheme, numbers.Number):
             init_value = np.full(shape, init_scheme, floatX)
         elif init_scheme == 'uniform':
-            init_value = self._np_rng.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX)
+            init_value = numpy.random.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX)
         else:
             raise AssertionError('unsupported init_scheme')
         p = theano.shared(init_value)
