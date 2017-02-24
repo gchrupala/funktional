@@ -29,8 +29,8 @@ class Linear(Layer):
         if isinstance(init_scheme, numbers.Number):
             init_value = np.full(shape, init_scheme, floatX)
         elif init_scheme == 'uniform':
-            #init_value = self._np_rng.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX) # FIXME 
-            init_value = np.random.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX) 
+            #init_value = self._np_rng.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX) # FIXME
+            init_value = np.random.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX)
 
         else:
             raise AssertionError('unsupported init_scheme')
@@ -43,13 +43,13 @@ class Linear(Layer):
             return [self.w, self.b]
         else:
             return [self.w]
-                
+
     def __call__(self, x):
         if self.bias_init is not None:
             return tt.dot(x, self.w) + self.b
         else:
-            return tt.dot(x, self.w) 
-   
+            return tt.dot(x, self.w)
+
 class RHN(Layer):
     """Recurrent Highway Network. Based on
     https://arxiv.org/abs/1607.03474 and
@@ -57,7 +57,7 @@ class RHN(Layer):
 
     """
     def __init__(self, size_in, size, recur_depth=1, drop_i=0.75 , drop_s=0.25,
-                 init_T_bias=-2.0, init_H_bias='uniform', tied_noise=True, init_scale=0.04, seed=1): 
+                 init_T_bias=-2.0, init_H_bias='uniform', tied_noise=True, init_scale=0.04, seed=1):
         autoassign(locals())
         self._theano_rng = RandomStreams(self.seed // 2 + 321)
         #self._np_rng = np.random.RandomState(self.seed // 2 + 123)
@@ -74,7 +74,7 @@ class RHN(Layer):
             else:
                 self.recurH.append(Linear(in_size=hidden_size, out_size=hidden_size, bias_init=self.init_H_bias))
                 self.recurT.append(Linear(in_size=hidden_size, out_size=hidden_size, bias_init=self.init_T_bias))
-        
+
 
     def apply_dropout(self, x, noise):
         if context.training:
@@ -86,41 +86,11 @@ class RHN(Layer):
         keep_p = 1 - dropout_p
         noise = cast_floatX(1. / keep_p) * self._theano_rng.binomial(size=shape, p=keep_p, n=1, dtype=floatX)
         return noise
-    
+
     def params(self):
         return params(*[self.LinearH, self.LinearT] + self.recurH + self.recurT)
 
-    def XXXmake_param(self, shape, init_scheme):
-        """Create Theano shared variables, which are used as trainable model parameters."""
-        if isinstance(init_scheme, numbers.Number):
-            init_value = np.full(shape, init_scheme, floatX)
-        elif init_scheme == 'uniform':
-            init_value = numpy.random.uniform(low=-self.init_scale, high=self.init_scale, size=shape).astype(floatX)
-        else:
-            raise AssertionError('unsupported init_scheme')
-        p = theano.shared(init_value)
-        self._params.append(p)
-        return p
 
-        
-    def XXXapply_linear(self, p, x, bias, bias_init=None):
-        assert bias == (bias_init is not None)
-        w = p['w']
-        y = tt.dot(x, w)
-        if bias:
-            b = d['b']
-            y += b
-        return y
-        
-    def XXXlinear(self, x, in_size, out_size, bias, bias_init=None):
-        assert bias == (bias_init is not None)
-        w = self.make_param((in_size, out_size), 'uniform')
-        y = tt.dot(x, w)
-        if bias:
-            b = self.make_param((out_size,), bias_init)
-            y += b
-        return y
-   
     def step(self, i_for_H_t, i_for_T_t, h_tm1, noise_s):
         tanh, sigm = tt.tanh, tt.nnet.sigmoid
         noise_s_for_H = noise_s if self.tied_noise else noise_s[0]
@@ -212,4 +182,3 @@ def StackedRHN0(size_in, size, depth, fixed=False, **kwargs):
         return WithH0(FixedZeros(size), StackedRHN(size_in, size, depth, fixed=fixed, **kwargs))
     else:
         return WithH0(Zeros(size), StackedRHN(size_in, size, depth, **kwargs))
-
