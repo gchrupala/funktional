@@ -75,21 +75,5 @@ output = softmax3d(Encdec(input, output_prev))
 
 See [layer.py](funktional/layer.py) for more examples of layer compositions.
 
-The file [autoencoder.py](autoencoder.py) uses funktional to implement a
-recurrent auto-encoder, which learns to map sentences to a hidden
-state vector and to decode the vector into the original sentence.  A
-GPU is recommended to run this example.
-
-Limitations
------------
-
-Funktional is not meant to be a full-fledged, self-contained toolkit,
-but only to provide a convenient interface. Functionality such as
-preprocessing, activation functions or implementations of various
-variants of stochastic gradient descent are available via some of the
-existing toolkits such as
-[Passage](https://github.com/IndicoDataSolutions/Passage) or
-[Keras](https://github.com/fchollet/keras). These toolkits can be a
-awkward if we need to implement a complicated custom architecture.
-Funktional is intended to make this use case easy.
+See [reimaginet](https://github.com/gchrupala/reimaginet/) for examples of models defined using funktional.
 
