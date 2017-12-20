@@ -7,10 +7,10 @@ import theano.tensor as tt
 from theano.ifelse import ifelse
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import numbers
-import context
+import funktional.context as context
 from funktional.layer import Layer, WithH0, FixedZeros, Zeros, Identity, Residual, params
 from funktional.util import autoassign
-
+from  functools import reduce
 floatX = theano.config.floatX
 
 def cast_floatX(n):

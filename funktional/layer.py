@@ -5,10 +5,11 @@
 
 import theano
 import theano.tensor as T
-from util import *
-import context
+from funktional.util import *
+import funktional.context
 import numpy
 from theano.sandbox.rng_mrg import MRG_RandomStreams
+from functools import reduce
 
 def params(*layers):
     return sum([ layer.params() for layer in layers ], [])
@@ -26,7 +27,7 @@ class Layer(object):
 
     def params(self):
         raise NotImplementedError
-    
+
     def compose(self, l2):
         """Compose itself with another layer."""
         return ComposedLayer(self, l2)
@@ -36,9 +37,9 @@ class Layer(object):
         qs = self.params()
         assert len(qs) == len(ps)
         for (q,p) in zip(qs, ps):
-            print "Setting value of {}".format(q)
+            print("Setting value of {}".format(q))
             q.set_value(p)
-        
+
 class Identity(Layer):
     """Return the input unmodified."""
     def __call__(self, inp):
@@ -46,7 +47,7 @@ class Identity(Layer):
 
     def params(self):
         return []
-    
+
 class Residual(Layer):
     """Residualizes a layer."""
     def __init__(self, layer):
@@ -57,9 +58,9 @@ class Residual(Layer):
 
     def params(self):
         return self.layer.params()
-    
+
 class ComposedLayer(Layer):
-    
+
     def __init__(self, first, second):
         autoassign(locals())
 
@@ -85,15 +86,15 @@ class Embedding(Layer):
 
     def params(self):
         return [self.E]
-    
+
     def unembed(self, inp):
         """Invert the embedding."""
         return T.dot(inp, self.E.T)
-        
+
 def theano_one_hot(idx, n):
     z = T.zeros((idx.shape[0], n))
     one_hot = T.set_subtensor(z[T.arange(idx.shape[0]), idx], 1)
-    return one_hot        
+    return one_hot
 
 class OneHot(Layer):
     """One-hot encoding of input."""
@@ -105,7 +106,7 @@ class OneHot(Layer):
 
     def __call__(self, inp):
         return theano_one_hot(inp.flatten(), self.size_in).reshape((inp.shape[0], inp.shape[1], self.size_in))
-                
+
 
 class Dense(Layer):
     """Fully connected layer."""
@@ -116,7 +117,7 @@ class Dense(Layer):
 
     def params(self):
         return [self.w, self.b]
-        
+
     def __call__(self, inp):
         return T.dot(inp, self.w) + self.b
 
@@ -129,7 +130,7 @@ class Dropout(Layer):
 
     def params(self):
         return []
-    
+
     def __call__(self, inp):
         if self.prob > 0.0:
             keep = 1.0 - self.prob
@@ -142,7 +143,7 @@ class Dropout(Layer):
 
 class Sum(Layer):
     """Componentwise sum of inputs."""
-    
+
     def __init__(self, size):
         autoassign(locals())
         self.id = T.alloc(0.0, 1, self.size)
@@ -157,9 +158,9 @@ class Sum(Layer):
         X = seq.dimshuffle((1,0,2))
         H0 = T.repeat(self.id, X.shape[1], axis=0)
         out, _ = theano.scan(self.step, sequences=[X], outputs_info=[H0])
-        return out.dimshuffle((1,0,2)) # return the whole sequence of partial sums 
+        return out.dimshuffle((1,0,2)) # return the whole sequence of partial sums
                                        # to be compatible with recurrent layers
-    
+
 class GRU_gate_activations(Layer):
     """Gated Recurrent Unit layer. Takes initial hidden state, and a
        sequence of inputs, and returns the sequence of hidden states,
@@ -189,7 +190,7 @@ class GRU_gate_activations(Layer):
 
         self.w_h = sharedX(numpy.identity(self.size))
         self.u_h = sharedX(numpy.zeros((self.size, self.size)))
-        self.b_h = shared0s((self.size))   
+        self.b_h = shared0s((self.size))
 
     def _init(self):
         self.w_z = self.init_in((self.size_in, self.size))
@@ -201,14 +202,14 @@ class GRU_gate_activations(Layer):
         self.b_z = shared0s((self.size))
         self.b_r = shared0s((self.size))
 
-        self.w_h = self.init_in((self.size_in, self.size)) 
+        self.w_h = self.init_in((self.size_in, self.size))
         self.u_h = self.init_recur((self.size, self.size))
-        self.b_h = shared0s((self.size))   
+        self.b_h = shared0s((self.size))
 
-        
+
     def params(self):
         return [self.w_z, self.w_r, self.w_h, self.u_z, self.u_r, self.u_h, self.b_z, self.b_r, self.b_h]
-        
+
     def step(self, xz_t, xr_t, xh_t, h_tm1, u_z, u_r, u_h):
         z = self.gate_activation(xz_t + T.dot(h_tm1, u_z))
         r = self.gate_activation(xr_t + T.dot(h_tm1, u_r))
@@ -222,9 +223,9 @@ class GRU_gate_activations(Layer):
         x_z = T.dot(X, self.w_z) + self.b_z
         x_r = T.dot(X, self.w_r) + self.b_r
         x_h = T.dot(X, self.w_h) + self.b_h
-        out, _ = theano.scan(self.step, 
-            sequences=[x_z, x_r, x_h], 
-                             outputs_info=[H0, None, None], 
+        out, _ = theano.scan(self.step,
+            sequences=[x_z, x_r, x_h],
+                             outputs_info=[H0, None, None],
                              non_sequences=[self.u_z, self.u_r, self.u_h],
                              go_backwards=self.backward
         )
@@ -240,7 +241,7 @@ class GRU(Layer):
 
     def params(self):
         return self.gru.params()
-    
+
     def __call__(self, h0, seq, repeat_h0=1):
         H, _, _ = self.gru(h0, seq, repeat_h0=repeat_h0)
         return H
@@ -261,7 +262,7 @@ class BidiGRU(Layer):
 
     def params(self):
         return params(self.gru_f, self.gru_b)
-    
+
     def __call__(self, h0, seq, repeat_h0=1):
         H_f, _, _ = self.gru_f(h0, seq, repeat_h0=repeat_h0)
         H_b, _, _ = self.gru_b(h0, seq, repeat_h0=repeat_h0)
@@ -272,16 +273,16 @@ class BidiGRU(Layer):
         H_b, _, _ = self.gru_b(h0, seq, repeat_h0=repeat_h0)
         return (H_f, H_b)
 
-        
+
 class Zeros(Layer):
-    """Returns a shared variable vector of specified size initialized with zeros.""" 
+    """Returns a shared variable vector of specified size initialized with zeros."""
     def __init__(self, size):
         autoassign(locals())
         self.zeros = theano.shared(numpy.asarray(numpy.zeros((1,self.size)), dtype=theano.config.floatX))
-    
+
     def params(self):
         return [self.zeros]
-    
+
     def __call__(self):
         return self.zeros
 
@@ -293,7 +294,7 @@ class FixedZeros(Layer):
 
     def params(self):
         return []
-    
+
     def __call__(self):
         return self.zeros
 
@@ -349,11 +350,11 @@ def first(x):
 class EncoderDecoderGRU(Layer):
     """A pair of GRUs: the first one encodes the input sequence into a
        state, the second one decodes the state into a sequence of states.
-   
+
     Args:
       inp (tensor3) - input sequence
       out_prev (tensor3) - sequence of output elements at position -1
-   
+
     Returns:
       tensor3 - sequence of states (one for each element of output sequence)
     """
@@ -368,9 +369,9 @@ class EncoderDecoderGRU(Layer):
         return params(self.Encode, self.Decode)
 
     def __call__(self, inp, out_prev):
-        return self.Decode(last(self.Encode(inp)), out_prev)    
+        return self.Decode(last(self.Encode(inp)), out_prev)
 
-                 
+
 class StackedGRU(Layer):
     """A stack of GRUs.
        Dropout layers intervene between adjacent GRU layers.
@@ -406,13 +407,15 @@ class StackedGRU(Layer):
         gruh0 = GRUH0(self.size, self.size, identity=identity, **self.kwargs)
         gruh0.borrow_params(ps)
         self.stack = gruh0.compose(Dropout(prob=self.dropout_prob)).compose(self.stack)
-    
+
 def StackedGRUH0(size_in, size, depth, fixed=False, **kwargs):
     """A stacked GRU layer with its own initial state."""
     if fixed:
         return WithH0(FixedZeros(size), StackedGRU(size_in, size, depth, fixed=fixed, **kwargs))
     else:
         return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
+
+import theano.gpuarray.dnn
 
 class Convolution1D(Layer):
     """A one-dimensional convolutional layer.
@@ -421,15 +424,16 @@ class Convolution1D(Layer):
         autoassign(locals())
         self.W_shape = (self.size, self.size_in, self.length, 1)
         self.W = glorot_uniform(self.W_shape)
-        
+
     def __call__(self, seq):
         seq = expand_dims(seq, -1).dimshuffle((0,2,1,3))
         #result = T.nnet.conv2d(seq, self.W, border_mode='full', subsample=(self.stride, 1))
         # T.nnet.conv2d crashes when using non-unit stride
-        result = theano.sandbox.cuda.dnn.dnn_conv(seq, self.W, border_mode='full', subsample=(self.stride, 1))
+
+        result = theano.gpuarray.dnn.dnn_conv(seq, self.W, border_mode='full', subsample=(self.stride, 1))
         result = squeeze(result, 3).dimshuffle((0,2,1))
         return self.activation(result)
-    
+
     def params(self):
         return [self.W]
 
@@ -461,18 +465,17 @@ def squeeze(x, axis):
 def softmax_time(x):
     """Input has shape Batch x Time x 1. Return softmax over dimension T."""
     return T.nnet.softmax(x.reshape((x.shape[0]*x.shape[2], x.shape[1]))).reshape(x.shape)
-                          
+
 class Attention(Layer):
     """Parameterized weighted average of a sequence of states."""
     def __init__(self, size_in, size=512, activation=tanh):
         autoassign(locals())
         self.Regress1 = Dense(size_in=self.size_in, size_out=self.size)
         self.Regress2 = Dense(size_in=self.size, size_out=1)
-        
+
     def params(self):
         return params(self.Regress1, self.Regress2)
-    
+
     def __call__(self, h):
         alpha = softmax_time(self.Regress2(self.activation(self.Regress1(h))))
         return T.sum(alpha.repeat(self.size_in, axis=2) * h, axis=1)
-        

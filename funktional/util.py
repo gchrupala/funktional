@@ -43,7 +43,7 @@ class IdMapper(object):
         self.BEG_ID = self.ids.to_id(self.BEG)
         self.END_ID = self.ids.to_id(self.END)
         self.UNK_ID = self.ids.to_id(self.UNK)
-    
+
     def size(self):
         return len(self.ids.encoder)
 
@@ -65,7 +65,7 @@ class IdMapper(object):
     def transform(self, sents):
         """Map each word in sents to a unique int, without adding new words."""
         return self._transform(sents, update=False)
-            
+
     def _transform(self, sents, update=False):
         default = None if update else self.UNK_ID
         for sent in sents:
@@ -76,7 +76,7 @@ class IdMapper(object):
                 else:
                     ids.append(self.ids.to_id(word, default=default))
             yield ids
-        
+
     def inverse_transform(self, sents):
         """Map each id in sents to the corresponding word."""
         for sent in sents:
@@ -153,21 +153,21 @@ def elu(x):
 
 def clipped_elu(x):
     return T.clip(T.switch(x > 0.0, x, T.exp(x)-1.0), -1.0, 5.0)
-    
+
 def sigmoid(x):
     return 1./(1. + T.exp(-x))
 
 def steeper_sigmoid(x):
     return 1./(1. + T.exp(-3.75 * x))
 
-def softmax3d(inp): 
+def softmax3d(inp):
     x = inp.reshape((inp.shape[0]*inp.shape[1],inp.shape[2]))
     result = softmax(x)
     return result.reshape(inp.shape)
 
 def softmax(x):
     e_x = T.exp(x - x.max(axis=1).dimshuffle(0, 'x'))
-    return e_x / e_x.sum(axis=1).dimshuffle(0, 'x')    
+    return e_x / e_x.sum(axis=1).dimshuffle(0, 'x')
 
 epsilon = 1e-7
 
@@ -186,21 +186,21 @@ def CosineDistance(U, V):
     W = (U_norm * V_norm).sum(axis=1)
     return (1 - W).mean()
 
-def contrastive(i, s, margin=0.2): 
-        # i: (fixed) image embedding, 
+def contrastive(i, s, margin=0.2):
+        # i: (fixed) image embedding,
         # s: sentence embedding
         errors = - cosine_matrix(i, s)
         diagonal = errors.diagonal()
         # compare every diagonal score to scores in its column (all contrastive images for each sentence)
-        cost_s = T.maximum(0, margin - errors + diagonal)  
+        cost_s = T.maximum(0, margin - errors + diagonal)
         # all contrastive sentences for each image
-        cost_i = T.maximum(0, margin - errors + diagonal.reshape((-1, 1)))  
+        cost_i = T.maximum(0, margin - errors + diagonal.reshape((-1, 1)))
         cost_tot = cost_s + cost_i
         # clear diagonals
         cost_tot = fill_diagonal(cost_tot, 0)
 
         return cost_tot.mean()
-    
+
 def cosine_matrix(U, V):
     U_norm = U / U.norm(2,  axis=1).reshape((U.shape[0], 1))
     V_norm = V / V.norm(2, axis=1).reshape((V.shape[0], 1))
@@ -208,7 +208,7 @@ def cosine_matrix(U, V):
 
 def clip_norms(gs, max_norm):
     def clip_norm(g, max_norm, norm):
-        return T.switch(T.ge(norm, max_norm), g*max_norm/norm, g)    
+        return T.switch(T.ge(norm, max_norm), g*max_norm/norm, g)
     norm = T.sqrt(sum([T.sum(g**2) for g in gs]))
     return [clip_norm(g, max_norm, norm) for g in gs]
 
@@ -224,7 +224,7 @@ class Adam(object):
                              if self.max_norm is None \
                              else clip_norms(T.grad(cost, params, disconnected_inputs=disconnected_inputs),
                                              self.max_norm)
-    
+
         i = theano.shared(floatX(0.))
         i_t = i + 1.
         fix1 = 1. - self.b1**(i_t)
@@ -259,7 +259,7 @@ def grouper(iterable, n):
         "Collect data into fixed-length chunks or blocks"
         # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
         args = [iter(iterable)] * n
-        chunks = itertools.izip_longest(fillvalue=None, *args)
+        chunks = itertools.zip_longest(fillvalue=None, *args)
         for chunk in chunks:
             yield [ x for x in chunk if not x is None ]
 
