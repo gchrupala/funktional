@@ -415,7 +415,11 @@ def StackedGRUH0(size_in, size, depth, fixed=False, **kwargs):
     else:
         return WithH0(Zeros(size), StackedGRU(size_in, size, depth, **kwargs))
 
-import theano.gpuarray.dnn
+try:
+    from theano.gpuarray.dnn import dnn_conv
+except ImportError:
+    from theano.sandbox.cuda.dnn import dnn_conv
+
 
 class Convolution1D(Layer):
     """A one-dimensional convolutional layer.
@@ -430,7 +434,7 @@ class Convolution1D(Layer):
         #result = T.nnet.conv2d(seq, self.W, border_mode='full', subsample=(self.stride, 1))
         # T.nnet.conv2d crashes when using non-unit stride
 
-        result = theano.gpuarray.dnn.dnn_conv(seq, self.W, border_mode='full', subsample=(self.stride, 1))
+        result = dnn_conv(seq, self.W, border_mode='full', subsample=(self.stride, 1))
         result = squeeze(result, 3).dimshuffle((0,2,1))
         return self.activation(result)
 
